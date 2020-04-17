@@ -1,4 +1,4 @@
-module git.what.codes/go/toolkits/micro-plugins
+module git@github.com/hkjojo/go-toolkits/broker/redis
 
 go 1.14
 
