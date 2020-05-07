@@ -1,10 +1,13 @@
 package micro
 
 import (
+	"context"
 	"time"
 
 	"github.com/micro/cli/v2"
 	"github.com/micro/go-micro/v2/config/cmd"
+	mmetadata "github.com/micro/go-micro/v2/metadata"
+	"google.golang.org/grpc/metadata"
 )
 
 // CmdOptions ..
@@ -108,6 +111,25 @@ func ServiceTopic(str []string) string {
 // ServiceName ..
 func ServiceName(str []string) string {
 	return FormatStrings(str)
+}
+
+// WithServiceContext ..
+func WithServiceContext(ctx context.Context) context.Context {
+	return mmetadata.Set(ctx, "service", GetServiceName())
+}
+
+// GetContextService get service name from context
+func GetContextService(ctx context.Context) string {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return ""
+	}
+
+	vs := md.Get("service")
+	if len(vs) > 0 {
+		return vs[0]
+	}
+	return ""
 }
 
 // Prefix ..

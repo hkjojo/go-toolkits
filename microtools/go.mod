@@ -12,4 +12,5 @@ require (
 	github.com/micro/cli/v2 v2.1.2
 	github.com/micro/go-micro/v2 v2.6.0
 	github.com/micro/go-plugins/config/source/consul/v2 v2.5.0
+	google.golang.org/grpc v1.26.0
 )
