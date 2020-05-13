@@ -172,7 +172,7 @@ func WithDetails(err error, details ...string) error {
 func AssertCode(code interface{}) int32 {
 	codeType := reflect.TypeOf(code)
 
-	if codeType.Kind() != reflect.Int32 {
+	if codeType.Kind() != reflect.Int32 && codeType.Kind() != reflect.Int {
 		panic("code should be kind of int32")
 	}
 

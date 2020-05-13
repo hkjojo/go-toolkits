@@ -1,10 +1,11 @@
 package sql
 
 import (
+	"time"
+
 	goqu "github.com/doug-martin/goqu/v9"
 	_ "github.com/doug-martin/goqu/v9/dialect/mysql"
 	_ "github.com/doug-martin/goqu/v9/dialect/sqlite3"
-
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/mattn/go-sqlite3"
 
@@ -26,9 +27,12 @@ func Goqu() *goqu.Database {
 
 // Config ..
 type Config struct {
-	Debug   bool
-	Dialect string
-	URL     string
+	Debug           bool
+	Dialect         string
+	URL             string
+	MaxOpenConns    int
+	MaxIdleConns    int
+	ConnMaxLifetime time.Duration
 }
 
 // Inject init db conns, panic if fail
@@ -51,6 +55,18 @@ func Open(cfg *Config) (*DataBase, error) {
 	db.SingularTable(true)
 	if cfg.Debug {
 		db.LogMode(true)
+	}
+
+	if cfg.MaxOpenConns != 0 {
+		db.DB().SetMaxOpenConns(cfg.MaxOpenConns)
+	}
+
+	if cfg.MaxIdleConns != 0 {
+		db.DB().SetMaxIdleConns(cfg.MaxIdleConns)
+	}
+
+	if cfg.ConnMaxLifetime != 0 {
+		db.DB().SetConnMaxLifetime(cfg.ConnMaxLifetime)
 	}
 
 	return &DataBase{
