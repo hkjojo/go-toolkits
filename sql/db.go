@@ -1,6 +1,9 @@
 package sql
 
 import (
+	"context"
+	"database/sql"
+	"runtime"
 	"time"
 
 	goqu "github.com/doug-martin/goqu/v9"
@@ -8,6 +11,7 @@ import (
 	_ "github.com/doug-martin/goqu/v9/dialect/sqlite3"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/pkg/errors"
 
 	"github.com/jinzhu/gorm"
 )
@@ -33,6 +37,7 @@ type Config struct {
 	MaxOpenConns    int
 	MaxIdleConns    int
 	ConnMaxLifetime time.Duration
+	TransTimeout    time.Duration
 }
 
 // Inject init db conns, panic if fail
@@ -71,6 +76,7 @@ func Open(cfg *Config) (*DataBase, error) {
 
 	return &DataBase{
 		DB:   db,
+		cfg:  cfg,
 		goqu: goqu.New(cfg.Dialect, db.DB()),
 	}, nil
 }
@@ -78,6 +84,7 @@ func Open(cfg *Config) (*DataBase, error) {
 // DataBase ...
 type DataBase struct {
 	*gorm.DB
+	cfg  *Config
 	goqu *goqu.Database
 }
 
@@ -107,18 +114,35 @@ func (db *DataBase) Rollback() *gorm.DB {
 }
 
 // Transaction ...
-func (db *DataBase) Transaction(f func(*gorm.DB) error) error {
-	tx := db.Begin()
-	err := f(tx)
+func (db *DataBase) Transaction(f func(*gorm.DB) error) (err error) {
+	return db.TransactionCtx(context.Background(), f)
+}
+
+// TransactionCtx ...
+func (db *DataBase) TransactionCtx(ctx context.Context, f func(*gorm.DB) error) (err error) {
+	var tx *gorm.DB
+	if _, ok := ctx.Deadline(); db.cfg.TransTimeout != 0 && !ok {
+		ctxt, cancel := context.WithTimeout(ctx, db.cfg.TransTimeout)
+		defer cancel()
+		tx = db.BeginTx(ctxt, &sql.TxOptions{})
+	} else {
+		tx = db.BeginTx(ctx, &sql.TxOptions{})
+	}
+
+	defer func() {
+		if ret := recover(); ret != nil {
+			var buf [4096]byte
+			n := runtime.Stack(buf[:], false)
+			err = errors.Errorf("panic[%s] \nret[%v]", string(buf[:n]), ret)
+		}
+	}()
+
+	err = f(tx)
 	if err != nil {
 		tx.Rollback()
-		return err
+		return
 	}
 
 	err = tx.Commit().Error
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return
 }
