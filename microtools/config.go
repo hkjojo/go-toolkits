@@ -32,16 +32,14 @@ func GetAddress() string {
 }
 
 // InitSource Directly init source. Use it without micro service
-func InitSource(address string, prefix ...string) {
+func InitSource(address string, prefix string) {
 	consulConf.address = address
 	var opts = []source.Option{consul.WithAddress(consulConf.address)}
-	if len(prefix) != 0 {
-		consulConf.prefix = prefix[0]
-		opts = append(opts,
-			consul.WithPrefix(consulConf.prefix),
-			consul.StripPrefix(true),
-		)
-	}
+	consulConf.prefix = prefix
+	opts = append(opts,
+		consul.WithPrefix(consulConf.prefix),
+		consul.StripPrefix(true),
+	)
 	consulConf.source = consul.NewSource(opts...)
 }
 
@@ -56,7 +54,6 @@ func ConfigGet(x interface{}, path ...string) error {
 		return err
 	}
 
-	path = getPrefixedPath(path...)
 	defer conf.Close()
 
 	if err := conf.Get(path...).Scan(x); err != nil {
@@ -77,7 +74,6 @@ func ConfigWatch(scanFunc func(reader.Value, error), path ...string) error {
 		return err
 	}
 
-	path = getPrefixedPath(path...)
 	w, err := conf.Watch(path...)
 	if err != nil {
 		return err
