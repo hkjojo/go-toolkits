@@ -1,13 +1,12 @@
 package microtools
 
 import (
-	"encoding/json"
 	"strings"
 
-	"github.com/hashicorp/consul/api"
 	"github.com/micro/go-micro/v2/config"
 	"github.com/micro/go-micro/v2/config/reader"
 	"github.com/micro/go-micro/v2/config/source"
+	"github.com/micro/go-micro/v2/config/source/file"
 	"github.com/micro/go-plugins/config/source/consul/v2"
 )
 
@@ -15,32 +14,34 @@ type conf struct {
 	source  source.Source
 	prefix  string
 	address string
+	path    []string
 }
 
-var consulConf = &conf{}
-
-func getPrefixedPath(path ...string) []string {
-	prefixPaths := strings.Split(consulConf.prefix, "/")
-	path = append(prefixPaths[1:], path...)
-
-	return path
-}
-
-// GetAddress ..
-func GetAddress() string {
-	return consulConf.address
-}
+var cfg = &conf{}
 
 // InitSource Directly init source. Use it without micro service
-func InitSource(address string, prefix string) {
-	consulConf.address = address
-	var opts = []source.Option{consul.WithAddress(consulConf.address)}
-	consulConf.prefix = prefix
-	opts = append(opts,
-		consul.WithPrefix(consulConf.prefix),
-		consul.StripPrefix(true),
-	)
-	consulConf.source = consul.NewSource(opts...)
+func InitSource() {
+	cfgAddr := GetConfigAddress()
+	switch {
+	case strings.HasPrefix(cfgAddr, "consul://"):
+		// consul path
+		cfg.address = cfgAddr[9:]
+		cfg.path = strings.Split(cfg.address, "/")
+		opts := []source.Option{
+			consul.WithAddress(GetRegistryAddress()),
+		}
+		if len(cfg.path) > 0 {
+			opts = append(opts, consul.WithPrefix(cfg.path[0]))
+		}
+
+		cfg.source = consul.NewSource(opts...)
+	case strings.HasPrefix(cfgAddr, "file://"):
+		// file path
+		cfg.address = cfgAddr[7:]
+		cfg.source = file.NewSource(
+			file.WithPath(cfg.address),
+		)
+	}
 }
 
 // ConfigGet ...
@@ -50,13 +51,13 @@ func ConfigGet(x interface{}, path ...string) error {
 		return err
 	}
 
-	if err = conf.Load(consulConf.source); err != nil {
+	if err = conf.Load(cfg.source); err != nil {
 		return err
 	}
 
 	defer conf.Close()
 
-	if err := conf.Get(path...).Scan(x); err != nil {
+	if err := conf.Get(append(cfg.path, path...)...).Scan(x); err != nil {
 		return err
 	}
 
@@ -70,17 +71,18 @@ func ConfigWatch(scanFunc func(reader.Value, error), path ...string) error {
 		return err
 	}
 
-	if err = conf.Load(consulConf.source); err != nil {
+	if err = conf.Load(cfg.source); err != nil {
 		return err
 	}
 
-	w, err := conf.Watch(path...)
+	ps := append(cfg.path, path...)
+	w, err := conf.Watch(ps...)
 	if err != nil {
 		return err
 	}
 
 	go func() {
-		val := conf.Get(path...)
+		val := conf.Get(ps...)
 		scanFunc(val, nil)
 
 		for {
@@ -98,23 +100,23 @@ func ConfigWatch(scanFunc func(reader.Value, error), path ...string) error {
 }
 
 // Sync ...
-func Sync(service string, conf interface{}) error {
-	data, _ := json.MarshalIndent(conf, "", "\t")
+// func Sync(service string, conf interface{}) error {
+// 	data, _ := json.MarshalIndent(conf, "", "\t")
 
-	apiConf := api.DefaultConfig()
-	apiConf.Address = consulConf.address
+// 	apiConf := api.DefaultConfig()
+// 	apiConf.Address = cfg.address
 
-	// Get a new client
-	client, err := api.NewClient(apiConf)
-	if err != nil {
-		return err
-	}
+// 	// Get a new client
+// 	client, err := api.NewClient(apiConf)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	// Get a handle to the KV API
-	kv := client.KV()
+// 	// Get a handle to the KV API
+// 	kv := client.KV()
 
-	// PUT a new KV pair
-	p := &api.KVPair{Key: service, Value: data}
-	_, err = kv.Put(p, nil)
-	return err
-}
+// 	// PUT a new KV pair
+// 	p := &api.KVPair{Key: service, Value: data}
+// 	_, err = kv.Put(p, nil)
+// 	return err
+// }
