@@ -28,6 +28,7 @@ type CmdOptions struct {
 	BrokerAddress        string
 	Registry             string
 	RegistryAddress      string
+	PreferedNetworks     []string
 	ConfigAddress        string
 
 	ServiceName string
@@ -60,6 +61,11 @@ func InitCmd() error {
 			Name:    "config_address",
 			EnvVars: []string{"MICRO_CONFIG_ADDRESS"},
 			Usage:   "Address of the config.",
+		},
+		&cli.StringSliceFlag{
+			Name:    "prefered_networks",
+			EnvVars: []string{"MICRO_PREFERED_NETWORKS"},
+			Usage:   "Prefered networks",
 		})
 
 	before := app.Before
@@ -81,6 +87,7 @@ func InitCmd() error {
 			RegistryAddress:  ctx.String("registry_address"),
 			ReplicaID:        ctx.Int("replica_id"),
 			ConfigAddress:    ctx.String("config_address"),
+			PreferedNetworks: ctx.StringSlice("prefered_networks"),
 		}
 
 		options.ServiceName = FormatStrings([]string{
@@ -218,6 +225,11 @@ func GetRegistryAddress() string {
 // GetConfigAddress ..
 func GetConfigAddress() string {
 	return options.ConfigAddress
+}
+
+// GetPreferdNetworks ..
+func GetPreferedNetworks() []string {
+	return options.PreferedNetworks
 }
 
 // GetReplicaID ..
