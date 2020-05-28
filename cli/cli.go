@@ -31,6 +31,7 @@ type ServerFlags struct {
 	ConfigAddress        string
 	ConfigType           string
 	ConfigHost           string
+	ServerDomain         string
 
 	ServiceName string
 }
@@ -186,6 +187,11 @@ var (
 			EnvVars: []string{"CONFIG_HOST"},
 			Usage:   "host of config",
 		},
+		&cli.StringFlag{
+			Name:    "server_domain",
+			EnvVars: []string{"SERVER_DOMAIN"},
+			Usage:   "The domain of server",
+		},
 	}
 )
 
@@ -215,6 +221,7 @@ func Init() error {
 			ConfigAddress:    c.String("config_address"),
 			ConfigType:       c.String("config_type"),
 			ConfigHost:       c.String("config_host"),
+			ServerDomain:     c.String("server_domain"),
 		}
 		serverFlags.ServiceName = FormatStrings([]string{
 			serverFlags.CompanyName,
@@ -345,6 +352,11 @@ func GetRegisterTTL() time.Duration {
 // GetRegisterInternal ..
 func GetRegisterInternal() time.Duration {
 	return serverFlags.RegisterInternal
+}
+
+// GetServerDomain ..
+func GetServerDomain() string {
+	return serverFlags.ServerDomain
 }
 
 // Prefix ..
