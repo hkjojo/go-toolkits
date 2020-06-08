@@ -10,8 +10,11 @@ import (
 	"github.com/micro/go-plugins/config/source/consul/v2"
 )
 
+// Option ...
+type Option func(*conf)
 type conf struct {
 	source  source.Source
+	from    string
 	prefix  string
 	address string
 	path    []string
@@ -20,12 +23,16 @@ type conf struct {
 var cfg = &conf{}
 
 // InitSource Directly init source. Use it without micro service
-func InitSource() {
-	cfgAddr := GetConfigAddress()
+func InitSource(opts ...Option) {
+	cfg.from = GetConfigAddress()
+	for _, o := range opts {
+		o(cfg)
+	}
+
 	switch {
-	case strings.HasPrefix(cfgAddr, "consul://"):
+	case strings.HasPrefix(cfg.from, "consul://"):
 		// consul path
-		cfg.address = cfgAddr[9:]
+		cfg.address = cfg.from[9:]
 		cfg.path = strings.Split(cfg.address, "/")
 		opts := []source.Option{
 			consul.WithAddress(GetRegistryAddress()),
@@ -35,12 +42,19 @@ func InitSource() {
 		}
 
 		cfg.source = consul.NewSource(opts...)
-	case strings.HasPrefix(cfgAddr, "file://"):
+	case strings.HasPrefix(cfg.from, "file://"):
 		// file path
-		cfg.address = cfgAddr[7:]
+		cfg.address = cfg.from[7:]
 		cfg.source = file.NewSource(
 			file.WithPath(cfg.address),
 		)
+	}
+}
+
+// WithFrom ...
+func WithFrom(from string) Option {
+	return func(cfg *conf) {
+		cfg.from = from
 	}
 }
 
