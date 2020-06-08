@@ -34,6 +34,8 @@ func (c *Config) init() {
 		opts := []source.Option{
 			consul.WithAddress(GetRegistryAddress()),
 		}
+
+		opts = append(opts, consul.WithPrefix("/"))
 		if len(c.path) > 0 {
 			opts = append(opts, consul.WithPrefix(c.path[0]))
 		}
@@ -42,6 +44,11 @@ func (c *Config) init() {
 	case strings.HasPrefix(c.from, "file://"):
 		// file path
 		c.address = c.from[7:]
+		c.source = file.NewSource(
+			file.WithPath(c.address),
+		)
+	default:
+		c.address = c.from
 		c.source = file.NewSource(
 			file.WithPath(c.address),
 		)
@@ -66,6 +73,22 @@ func (c *Config) Get(x interface{}, path ...string) error {
 	}
 
 	return nil
+}
+
+// Value ....
+func (c *Config) Value(path ...string) (reader.Value, error) {
+	conf, err := config.NewConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	if err = conf.Load(c.source); err != nil {
+		return nil, err
+	}
+
+	defer conf.Close()
+
+	return conf.Get(append(c.path, path...)...), nil
 }
 
 // Watch ...
@@ -140,6 +163,11 @@ func WithFrom(from string) Option {
 // ConfigGet ...
 func ConfigGet(x interface{}, path ...string) error {
 	return cfg.Get(x, path...)
+}
+
+// ConfigValue ...
+func ConfigValue(path ...string) (reader.Value, error) {
+	return cfg.Value(path...)
 }
 
 // ConfigWatch ...

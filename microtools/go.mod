@@ -1,7 +1,7 @@
 module github.com/hkjojo/go-toolkits/microtools
 
 replace (
-	github.com/micro/go-micro/v2 => github.com/hkjojo/go-micro/v2 v2.6.1
+	github.com/micro/go-micro/v2 => github.com/hkjojo/go-micro/v2 v2.6.2
 	github.com/micro/go-plugins/config/source/consul/v2 => github.com/hkjojo/go-plugins/config/source/consul/v2 v2.5.0
 )
 
