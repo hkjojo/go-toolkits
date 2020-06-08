@@ -10,9 +10,13 @@ import (
 	"github.com/micro/go-plugins/config/source/consul/v2"
 )
 
+var cfg = &Config{}
+
 // Option ...
-type Option func(*conf)
-type conf struct {
+type Option func(*Config)
+
+// Config ...
+type Config struct {
 	source  source.Source
 	from    string
 	prefix  string
@@ -20,76 +24,61 @@ type conf struct {
 	path    []string
 }
 
-var cfg = &conf{}
-
-// InitSource Directly init source. Use it without micro service
-func InitSource(opts ...Option) {
-	cfg.from = GetConfigAddress()
-	for _, o := range opts {
-		o(cfg)
-	}
-
+func (c *Config) init() {
 	switch {
-	case strings.HasPrefix(cfg.from, "consul://"):
+	case strings.HasPrefix(c.from, "consul://"):
 		// consul path
-		cfg.address = cfg.from[9:]
-		cfg.path = strings.Split(cfg.address, "/")
+		c.address = c.from[9:]
+		c.path = strings.Split(c.address, "/")
 		opts := []source.Option{
 			consul.WithAddress(GetRegistryAddress()),
 		}
-		if len(cfg.path) > 0 {
-			opts = append(opts, consul.WithPrefix(cfg.path[0]))
+		if len(c.path) > 0 {
+			opts = append(opts, consul.WithPrefix(c.path[0]))
 		}
 
-		cfg.source = consul.NewSource(opts...)
-	case strings.HasPrefix(cfg.from, "file://"):
+		c.source = consul.NewSource(opts...)
+	case strings.HasPrefix(c.from, "file://"):
 		// file path
-		cfg.address = cfg.from[7:]
-		cfg.source = file.NewSource(
-			file.WithPath(cfg.address),
+		c.address = c.from[7:]
+		c.source = file.NewSource(
+			file.WithPath(c.address),
 		)
 	}
 }
 
-// WithFrom ...
-func WithFrom(from string) Option {
-	return func(cfg *conf) {
-		cfg.from = from
-	}
-}
-
-// ConfigGet ...
-func ConfigGet(x interface{}, path ...string) error {
+// Get ....
+func (c *Config) Get(x interface{}, path ...string) error {
 	conf, err := config.NewConfig()
 	if err != nil {
 		return err
 	}
 
-	if err = conf.Load(cfg.source); err != nil {
+	if err = conf.Load(c.source); err != nil {
 		return err
 	}
 
 	defer conf.Close()
 
-	if err := conf.Get(append(cfg.path, path...)...).Scan(x); err != nil {
+	if err := conf.Get(append(c.path, path...)...).Scan(x); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// ConfigWatch ...
-func ConfigWatch(scanFunc func(reader.Value, error), path ...string) error {
+// Watch ...
+func (c *Config) Watch(scanFunc func(reader.Value, error), path ...string) error {
 	conf, err := config.NewConfig()
 	if err != nil {
 		return err
 	}
 
-	if err = conf.Load(cfg.source); err != nil {
+	if err = conf.Load(c.source); err != nil {
 		return err
 	}
 
-	ps := append(cfg.path, path...)
+	ps := append(c.path, path...)
 	w, err := conf.Watch(ps...)
 	if err != nil {
 		return err
@@ -111,6 +100,42 @@ func ConfigWatch(scanFunc func(reader.Value, error), path ...string) error {
 	}()
 
 	return nil
+}
+
+// NewConfig ...
+func NewConfig(opts ...Option) *Config {
+	conf := &Config{from: GetConfigAddress()}
+	for _, o := range opts {
+		o(conf)
+	}
+	conf.init()
+	return conf
+}
+
+// InitSource Directly init source. Use it without micro service
+func InitSource(opts ...Option) {
+	cfg.from = GetConfigAddress()
+	for _, o := range opts {
+		o(cfg)
+	}
+	cfg.init()
+}
+
+// WithFrom ...
+func WithFrom(from string) Option {
+	return func(cfg *Config) {
+		cfg.from = from
+	}
+}
+
+// ConfigGet ...
+func ConfigGet(x interface{}, path ...string) error {
+	return cfg.Get(x, path...)
+}
+
+// ConfigWatch ...
+func ConfigWatch(scanFunc func(reader.Value, error), path ...string) error {
+	return cfg.Watch(scanFunc, path...)
 }
 
 // Sync ...
