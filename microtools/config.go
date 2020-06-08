@@ -22,6 +22,7 @@ type Config struct {
 	prefix  string
 	address string
 	path    []string
+	wathers []config.Watcher
 }
 
 func (c *Config) init() {
@@ -84,6 +85,7 @@ func (c *Config) Watch(scanFunc func(reader.Value, error), path ...string) error
 		return err
 	}
 
+	c.wathers = append(c.wathers, w)
 	go func() {
 		val := conf.Get(ps...)
 		scanFunc(val, nil)
@@ -100,6 +102,13 @@ func (c *Config) Watch(scanFunc func(reader.Value, error), path ...string) error
 	}()
 
 	return nil
+}
+
+// WatchStop ...
+func (c *Config) WatchStop() {
+	for _, v := range c.wathers {
+		v.Stop()
+	}
 }
 
 // NewConfig ...
@@ -136,6 +145,11 @@ func ConfigGet(x interface{}, path ...string) error {
 // ConfigWatch ...
 func ConfigWatch(scanFunc func(reader.Value, error), path ...string) error {
 	return cfg.Watch(scanFunc, path...)
+}
+
+// ConfigWatchStop ...
+func ConfigWatchStop() {
+	cfg.WatchStop()
 }
 
 // Sync ...
