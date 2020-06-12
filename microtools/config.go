@@ -131,6 +131,36 @@ func (c *Config) Watch(scanFunc func(reader.Value, error), path ...string) error
 	return nil
 }
 
+// Put ...
+func (c *Config) Put(config interface{}, path ...string) error {
+	if !strings.HasPrefix(c.from, "consul://") {
+		return fmt.Errorf("put fail: %s", "source not support")
+	}
+
+	data, _ := json.MarshalIndent(config, "", "\t")
+
+	apiConf := api.DefaultConfig()
+	apiConf.Address = GetRegistryAddress()
+
+	// Get a new client
+	client, err := api.NewClient(apiConf)
+	if err != nil {
+		return err
+	}
+
+	// Get a handle to the KV API
+	kv := client.KV()
+
+	// PUT a new KV pair
+	key := strings.Join(append(c.path, path...), "/")
+	p := &api.KVPair{Key: key, Value: data}
+	_, err = kv.Put(p, nil)
+	if err != nil {
+		return fmt.Errorf("put fail: %w", err)
+	}
+	return nil
+}
+
 // WatchStop ...
 func (c *Config) WatchStop() {
 	for _, v := range c.wathers {
@@ -184,32 +214,7 @@ func ConfigWatchStop() {
 	cfg.WatchStop()
 }
 
-// Put ...
-func Put(conf interface{}, path ...string) error {
-	if !strings.HasPrefix(cfg.from, "consul://") {
-		return fmt.Errorf("put fail: %s", "source not support")
-	}
-
-	data, _ := json.MarshalIndent(conf, "", "\t")
-
-	apiConf := api.DefaultConfig()
-	apiConf.Address = GetRegistryAddress()
-
-	// Get a new client
-	client, err := api.NewClient(apiConf)
-	if err != nil {
-		return err
-	}
-
-	// Get a handle to the KV API
-	kv := client.KV()
-
-	// PUT a new KV pair
-	key := strings.Join(append(cfg.path, path...), "/")
-	p := &api.KVPair{Key: key, Value: data}
-	_, err = kv.Put(p, nil)
-	if err != nil {
-		return fmt.Errorf("put fail: %w", err)
-	}
-	return nil
+// ConfigPut ...
+func ConfigPut(config interface{}, path ...string) error {
+	return cfg.Put(config, path...)
 }
