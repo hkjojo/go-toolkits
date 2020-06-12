@@ -1,8 +1,11 @@
 package microtools
 
 import (
+	"encoding/json"
+	"fmt"
 	"strings"
 
+	"github.com/hashicorp/consul/api"
 	"github.com/micro/go-micro/v2/config"
 	"github.com/micro/go-micro/v2/config/reader"
 	"github.com/micro/go-micro/v2/config/source"
@@ -101,6 +104,7 @@ func (c *Config) Watch(scanFunc func(reader.Value, error), path ...string) error
 	if err = conf.Load(c.source); err != nil {
 		return err
 	}
+	conf.Sync()
 
 	ps := append(c.path, path...)
 	w, err := conf.Watch(ps...)
@@ -180,24 +184,32 @@ func ConfigWatchStop() {
 	cfg.WatchStop()
 }
 
-// Sync ...
-// func Sync(service string, conf interface{}) error {
-// 	data, _ := json.MarshalIndent(conf, "", "\t")
+// Put ...
+func Put(conf interface{}, path ...string) error {
+	if !strings.HasPrefix(cfg.from, "consul://") {
+		return fmt.Errorf("put fail: %s", "source not support")
+	}
 
-// 	apiConf := api.DefaultConfig()
-// 	apiConf.Address = cfg.address
+	data, _ := json.MarshalIndent(conf, "", "\t")
 
-// 	// Get a new client
-// 	client, err := api.NewClient(apiConf)
-// 	if err != nil {
-// 		return err
-// 	}
+	apiConf := api.DefaultConfig()
+	apiConf.Address = GetRegistryAddress()
 
-// 	// Get a handle to the KV API
-// 	kv := client.KV()
+	// Get a new client
+	client, err := api.NewClient(apiConf)
+	if err != nil {
+		return err
+	}
 
-// 	// PUT a new KV pair
-// 	p := &api.KVPair{Key: service, Value: data}
-// 	_, err = kv.Put(p, nil)
-// 	return err
-// }
+	// Get a handle to the KV API
+	kv := client.KV()
+
+	// PUT a new KV pair
+	key := strings.Join(append(cfg.path, path...), "/")
+	p := &api.KVPair{Key: key, Value: data}
+	_, err = kv.Put(p, nil)
+	if err != nil {
+		return fmt.Errorf("put fail: %w", err)
+	}
+	return nil
+}
