@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/hkjojo/go-toolkits/log/encoder"
+	"github.com/hkjojo/go-toolkits/log/hook"
 
 	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
 	"go.uber.org/zap"
@@ -30,8 +31,8 @@ type Config struct {
 	ForbitLevel   bool
 	Caller        bool
 	Prefix        string
-	Kafka         *KafkaConfig
-	WebHook       []*WebHookConfig
+	Kafka         *hook.KafkaConfig
+	WebHook       []*hook.WebHookConfig
 	RotateDay     int
 }
 
@@ -100,7 +101,7 @@ func New(config *Config) (*Logger, error) {
 		msgKey     = "msg"
 	)
 	if config.Level != "" {
-		lvl = ParseLevel(config.Level)
+		lvl = hook.ParseLevel(config.Level)
 		if err != nil {
 			return nil, err
 		}
@@ -158,17 +159,15 @@ func New(config *Config) (*Logger, error) {
 	}
 
 	encoderConfig := zapcore.EncoderConfig{
-		TimeKey:       timeKey,
-		LevelKey:      levelKey,
-		NameKey:       "logger",
-		CallerKey:     "caller",
-		MessageKey:    msgKey,
-		StacktraceKey: "stacktrace",
-		LineEnding:    zapcore.DefaultLineEnding,
-		EncodeLevel:   zapcore.CapitalLevelEncoder,
-		EncodeTime: func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
-			enc.AppendString(t.Format("2006-01-02 15:04:05.999999999 -07"))
-		},
+		TimeKey:        timeKey,
+		LevelKey:       levelKey,
+		NameKey:        "logger",
+		CallerKey:      "caller",
+		MessageKey:     msgKey,
+		StacktraceKey:  "stacktrace",
+		LineEnding:     zapcore.DefaultLineEnding,
+		EncodeLevel:    zapcore.CapitalLevelEncoder,
+		EncodeTime:     zapcore.RFC3339TimeEncoder,
 		EncodeDuration: zapcore.SecondsDurationEncoder,
 		EncodeCaller:   zapcore.ShortCallerEncoder,
 	}
@@ -190,11 +189,11 @@ func New(config *Config) (*Logger, error) {
 	))
 
 	for _, cfg := range config.WebHook {
-		cores = append(cores, NewWebHookCore(cfg, encoderConfig))
+		cores = append(cores, hook.NewWebHookCore(cfg, encoderConfig))
 	}
 
 	if config.Kafka != nil {
-		core, err := NewKafkaCore(config, encoderConfig)
+		core, err := hook.NewKafkaCore(config.Kafka, config.Prefix, config.Fields, encoderConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -237,23 +236,4 @@ func getDir(path string) string {
 		paths[:len(paths)-1],
 		"/",
 	)
-}
-
-// CombineFields ..
-func CombineFields(src, src2 map[string]string) (dst map[string]string) {
-	dst = make(map[string]string)
-	for k, v := range src {
-		dst[k] = v
-	}
-	for k, v := range src2 {
-		dst[k] = v
-	}
-	return
-}
-
-// ParseLevel .. parse level
-func ParseLevel(loglevel string) zapcore.Level {
-	var lv zapcore.Level
-	lv.UnmarshalText([]byte(loglevel))
-	return lv
 }

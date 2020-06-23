@@ -1,7 +1,6 @@
-package log
+package hook
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -30,20 +29,19 @@ type KafkaCore struct {
 }
 
 // NewKafkaCore ...
-func NewKafkaCore(config *Config, encode zapcore.EncoderConfig) (core *KafkaCore, err error) {
-	kafka := config.Kafka
+func NewKafkaCore(config *KafkaConfig, prefix string, fields map[string]string, encode zapcore.EncoderConfig) (core *KafkaCore, err error) {
 	core = &KafkaCore{
 		BaseCore: &BaseCore{
-			queue:        make(chan *CoreData, kafka.QueueLength),
-			LevelEnabler: zap.NewAtomicLevelAt(ParseLevel(kafka.Level)),
+			queue:        make(chan *CoreData, config.QueueLength),
+			LevelEnabler: zap.NewAtomicLevelAt(ParseLevel(config.Level)),
 			enc:          zapcore.NewJSONEncoder(encode),
 			out:          zapcore.AddSync(ioutil.Discard),
-			filters:      getfilters(kafka.Filter),
-			fields:       CombineFields(config.Fields, kafka.Fields),
-			off:          kafka.Off,
+			filters:      getfilters(config.Filter),
+			fields:       CombineFields(fields, config.Fields),
+			off:          config.Off,
 		},
-		config: kafka,
-		prefix: config.Prefix,
+		config: config,
+		prefix: prefix,
 	}
 
 	core.BaseCore.core = core
@@ -53,7 +51,7 @@ func NewKafkaCore(config *Config, encode zapcore.EncoderConfig) (core *KafkaCore
 	cfg.Producer.Return.Successes = true
 	cfg.Producer.Timeout = time.Second
 
-	core.client, err = sarama.NewAsyncProducer(kafka.Hosts, cfg)
+	core.client, err = sarama.NewAsyncProducer(config.Hosts, cfg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr,
 			"[log] new kafka client err: %v\n", err)
@@ -78,39 +76,52 @@ func NewKafkaCore(config *Config, encode zapcore.EncoderConfig) (core *KafkaCore
 	return core, nil
 }
 
-func (c *KafkaCore) writeData(data *CoreData) {
-	var keys = make(map[string]interface{})
+func (c *KafkaCore) encode(data *CoreData) (string, error) {
+	encode := c.enc.Clone()
 	var str string
-	for _, file := range data.fields {
+	for _, field := range data.fields {
 		if !c.config.MergeData {
-			keys[file.Key] = c.getField(file)
-			continue
-		}
-		if file.Key == "level" || file.Key == "msg" || file.Key == "time" {
-			keys[file.Key] = c.getField(file)
+			field.AddTo(encode)
 			continue
 		}
 
-		if _, ok := c.fields[file.Key]; ok {
-			keys[file.Key] = c.getField(file)
+		if _, ok := c.fields[field.Key]; ok {
+			field.AddTo(encode)
 			continue
 		}
 
 		if str != "" {
-			str += fmt.Sprintf(" %s:%v", file.Key, c.getField(file))
+			str += fmt.Sprintf(" %s:%v", field.Key, c.getField(field))
 		} else {
-			str += fmt.Sprintf("%s:%v", file.Key, c.getField(file))
+			str += fmt.Sprintf("%s:%v", field.Key, c.getField(field))
 		}
 	}
 
 	if str != "" {
-		keys["data"] = str
+		zapcore.Field{Key: "data", String: str, Type: zapcore.StringType}.AddTo(encode)
 	}
 
-	var content, _ = json.Marshal(keys)
+	buf, err := encode.EncodeEntry(data.entry, nil)
+	if err != nil {
+		return "", err
+	}
+	defer buf.Free()
+	return buf.String(), nil
+}
+
+func (c *KafkaCore) writeData(data *CoreData) {
+	content, err := c.encode(data)
+	if err != nil {
+		fmt.Fprintf(os.Stderr,
+			"[log] kafka encode err: %v\n", err)
+		return
+	}
+	c.write(content)
+}
+
+func (c *KafkaCore) write(content string) {
 	msg := &sarama.ProducerMessage{}
 	msg.Topic = c.prefix + c.config.Topic
-
 	msg.Value = sarama.ByteEncoder(content)
 	c.client.Input() <- msg
 }

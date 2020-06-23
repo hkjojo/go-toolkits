@@ -1,4 +1,4 @@
-package log
+package hook
 
 import (
 	"fmt"
@@ -40,7 +40,7 @@ type BaseCore struct {
 // CoreData ..
 type CoreData struct {
 	entry  zapcore.Entry
-	fields map[string]zapcore.Field
+	fields []zapcore.Field
 }
 
 // With ..
@@ -53,18 +53,13 @@ func (c *BaseCore) With(fields []zapcore.Field) zapcore.Core {
 // Write ..
 func (c *BaseCore) Write(ent zapcore.Entry, fields []zapcore.Field) error {
 	if c.core != nil {
-		var fs = make(map[string]zapcore.Field)
-		for _, field := range fields {
-			fs[field.Key] = field
-		}
-
+		var fs = SliceFieldToMap(fields)
 		for _, field := range c.withfields {
 			fs[field.Key] = field
 		}
 
-		mergeEntryFields(ent, fs)
 		c.filterFields(fs)
-		err := c.write(ent, fs)
+		err := c.write(ent, MapFieldToSlice(fs))
 		if err != nil {
 			return err
 		}
@@ -94,7 +89,7 @@ func (c *BaseCore) Sync() error {
 	return c.out.Sync()
 }
 
-func (c *BaseCore) write(entry zapcore.Entry, fields map[string]zapcore.Field) (err error) {
+func (c *BaseCore) write(entry zapcore.Entry, fields []zapcore.Field) (err error) {
 
 	select {
 	case c.queue <- &CoreData{
@@ -197,9 +192,9 @@ func (c *BaseCore) getField(field zapcore.Field) interface{} {
 func (c *BaseCore) writeData(data *CoreData) {
 	if c.core != nil {
 		defer func() {
-			if err := recover(); err != nil {
-				fmt.Fprintf(os.Stderr, "core write data panic error %s", err)
-			}
+			// if err := recover(); err != nil {
+			// 	fmt.Fprintf(os.Stderr, "core write data panic error %s", err)
+			// }
 		}()
 		c.core.writeData(data)
 	}
@@ -211,25 +206,58 @@ func (c *BaseCore) addFields(fields []zapcore.Field) {
 	}
 }
 
-func mergeEntryFields(ent zapcore.Entry, fields map[string]zapcore.Field) {
-	fields["level"] = zapcore.Field{
+func mergeEntryFields(ent zapcore.Entry, fields []zapcore.Field) {
+	fields = append(fields, zapcore.Field{
 		Type:   zapcore.StringType,
 		Key:    "level",
 		String: ent.Level.String(),
-	}
-
-	fields["time"] = zapcore.Field{
+	}, zapcore.Field{
 		Type:      zapcore.TimeType,
 		Key:       "time",
 		Integer:   ent.Time.UnixNano(),
 		Interface: ent.Time.Location(),
-	}
-
-	fields["msg"] = zapcore.Field{
+	}, zapcore.Field{
 		Type:   zapcore.StringType,
 		Key:    "msg",
 		String: ent.Message,
+	})
+}
+
+// CombineFields ..
+func CombineFields(src, src2 map[string]string) (dst map[string]string) {
+	dst = make(map[string]string)
+	for k, v := range src {
+		dst[k] = v
 	}
+	for k, v := range src2 {
+		dst[k] = v
+	}
+	return
+}
+
+// ParseLevel .. parse level
+func ParseLevel(loglevel string) zapcore.Level {
+	var lv zapcore.Level
+	lv.UnmarshalText([]byte(loglevel))
+	return lv
+}
+
+// SliceFieldToMap ..
+func SliceFieldToMap(fields []zapcore.Field) map[string]zapcore.Field {
+	var fs = make(map[string]zapcore.Field)
+	for _, field := range fields {
+		fs[field.Key] = field
+	}
+	return fs
+}
+
+// MapFieldToSlice ..
+func MapFieldToSlice(fields map[string]zapcore.Field) []zapcore.Field {
+	var fs = make([]zapcore.Field, 0, len(fields))
+	for _, f := range fields {
+		fs = append(fs, f)
+	}
+	return fs
 }
 
 func getfilters(fields []string) (filters map[string]bool) {

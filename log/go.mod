@@ -10,10 +10,9 @@ require (
 	github.com/lestrrat-go/file-rotatelogs v2.2.0+incompatible
 	github.com/lestrrat-go/strftime v0.0.0-20190725011945-5c849dd2c51d // indirect
 	github.com/tebeka/strftime v0.1.3 // indirect
-	go.uber.org/atomic v1.5.1 // indirect
-	go.uber.org/multierr v1.4.0 // indirect
-	go.uber.org/zap v1.13.0
-	golang.org/x/lint v0.0.0-20200130185559-910be7a94367 // indirect
-	golang.org/x/tools v0.0.0-20200219054238-753a1d49df85 // indirect
+	go.uber.org/zap v1.15.0
+	golang.org/x/lint v0.0.0-20200302205851-738671d3881b // indirect
+	golang.org/x/tools v0.0.0-20200622203043-20e05c1c8ffa // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
+	honnef.co/go/tools v0.0.1-2020.1.4 // indirect
 )

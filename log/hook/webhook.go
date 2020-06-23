@@ -1,4 +1,4 @@
-package log
+package hook
 
 import (
 	"bytes"
@@ -54,37 +54,42 @@ func NewWebHookCore(config *WebHookConfig, encode zapcore.EncoderConfig) (core *
 	return
 }
 
-func (c *WebHookCore) writeData(data *CoreData) {
-	var (
-		req     = c.config.Message
-		content string
-		rsp     *http.Response
-		err     error
-	)
-
+func (c *WebHookCore) encode(data *CoreData) string {
+	var content string
+	msg := c.config.Message
+	mergeEntryFields(data.entry, data.fields)
 	for _, f := range data.fields {
 		var kv = strings.Replace(c.config.KVMessage, "{{key}}", f.Key, -1)
 		kv = strings.Replace(kv, "{{value}}", c.getFieldString(f), -1)
 		content += kv
 	}
 
-	req = strings.Replace(req, "{{content}}", content, -1)
+	return strings.Replace(msg, "{{content}}", content, -1)
+}
 
+func (c *WebHookCore) writeData(data *CoreData) {
+	c.write(c.encode(data))
+}
+
+func (c *WebHookCore) write(content string) {
+	var (
+		rsp *http.Response
+		err error
+	)
 	switch c.config.Method {
 	case MethodGET:
 		//rsp, err = http.Get(config.Host + req)
 	case MethodPOST:
 		rsp, err = http.Post(c.config.Host, c.config.ContentType,
-			bytes.NewBuffer([]byte(req)))
+			bytes.NewBuffer([]byte(content)))
 	}
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "web hook fail host:%s err:%v content:%s rsp:%v\n",
-			c.config.Host, err, req, rsp)
+			c.config.Host, err, content, rsp)
 	}
 	if rsp.StatusCode != http.StatusOK {
 		fmt.Fprintf(os.Stderr, "web hook fail host:%s code:%d content:%s rsp:%v\n",
-			c.config.Host, rsp.StatusCode, req, rsp)
+			c.config.Host, rsp.StatusCode, content, rsp)
 	}
-	fmt.Println(req)
 }
