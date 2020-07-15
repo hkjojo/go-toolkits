@@ -167,7 +167,7 @@ func New(config *Config) (*Logger, error) {
 		StacktraceKey:  "stacktrace",
 		LineEnding:     zapcore.DefaultLineEnding,
 		EncodeLevel:    zapcore.CapitalLevelEncoder,
-		EncodeTime:     zapcore.RFC3339TimeEncoder,
+		EncodeTime:     zapcore.RFC3339NanoTimeEncoder,
 		EncodeDuration: zapcore.SecondsDurationEncoder,
 		EncodeCaller:   zapcore.ShortCallerEncoder,
 	}
