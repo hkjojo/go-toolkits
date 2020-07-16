@@ -112,7 +112,7 @@ func (f *ArgsFilter) execOp(op QueryOp, value interface{}) goqu.Op {
 	var opEx goqu.Op
 	typ := reflect.TypeOf(value)
 	switch op {
-	case EQ, NEQ, GT, LT, LTE, GTE, IS, ILIKE:
+	case EQ, NEQ, GT, LT, LTE, GTE, IS:
 		opEx = goqu.Op{string(op): value}
 	case BETWEEN, NOTBETWEEN:
 		if typ == nil {
@@ -135,7 +135,7 @@ func (f *ArgsFilter) execOp(op QueryOp, value interface{}) goqu.Op {
 			opEx = goqu.Op{string(op): value}
 		}
 
-	case LIKE, NOTLIKE:
+	case LIKE, NOTLIKE, ILIKE:
 		opEx = goqu.Op{string(op): "%" + fmt.Sprintf("%v", value) + "%"}
 	default:
 	}
