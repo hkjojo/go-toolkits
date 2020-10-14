@@ -137,6 +137,8 @@ import (
 	"sync"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/gorilla/websocket"
 )
 
 // Defaults used by HandleHTTP
@@ -193,8 +195,8 @@ type Response struct {
 	next          *Response // for free list in Server
 }
 
-// ConnHandler ...
-type ConnHandler func(*Conn)
+// InitHandler ...
+type InitHandler func(*Conn)
 
 // ServiceHandler ...
 type ServiceHandler func(*Conn, *Args) (interface{}, error)
@@ -211,7 +213,6 @@ type Server struct {
 	respLock   sync.Mutex // protects freeResp
 	freeResp   *Response
 
-	onConnInit      ConnHandler
 	onMissingMethod MissingMethodFunc
 	onWrap          WrapHandler
 }
@@ -240,11 +241,6 @@ var DefaultServer = NewServer()
 func isExported(name string) bool {
 	rune, _ := utf8.DecodeRuneInString(name)
 	return unicode.IsUpper(rune)
-}
-
-// OnConnInit ...
-func (server *Server) OnConnInit(handler ConnHandler) {
-	server.onConnInit = handler
 }
 
 // OnMissingMethod ...
@@ -456,20 +452,17 @@ func (s *service) call(conn *Conn, args *Args) (resp interface{}, err error) {
 
 // ServeCodec is like ServeConn but uses the specified codec to
 // decode requests and encode responses.
-func (server *Server) ServeCodec(req *http.Request, codec ServerCodec, onInit ConnHandler) {
+func (server *Server) ServeCodec(req *http.Request, codec ServerCodec, onInit ...InitHandler) {
 	sending := new(sync.Mutex)
 	conn := NewConn(req, sending, codec)
-	if server.onConnInit != nil {
-		server.onConnInit(conn)
-	}
 
-	if onInit != nil {
-		onInit(conn)
+	for _, fn := range onInit {
+		fn(conn)
 	}
 
 	for {
 		service, req, args, keepReading, err := server.readRequest(codec)
-		if debugLog && err != io.EOF {
+		if debugLog && err != nil && err != io.EOF {
 			fmt.Println(err)
 		}
 		if !keepReading {
@@ -642,13 +635,11 @@ func (server *Server) readRequestHeader(codec ServerCodec,
 	return
 }
 
-// Register publishes the receiver's methods in the DefaultServer.
-func Register(rcvr interface{}) error { return DefaultServer.Register(rcvr) }
-
-// RegisterName is like Register but uses the provided name for the type
-// instead of the receiver's concrete type.
-func RegisterName(name string, rcvr interface{}) error {
-	return DefaultServer.RegisterName(name, rcvr)
+// OnConnect ...
+func (server *Server) OnConnect(r *http.Request, ws *websocket.Conn, onInit ...InitHandler) {
+	rwc := NewReadWriteCloser(ws)
+	codec := NewServerCodec(rwc)
+	server.ServeCodec(r, codec, onInit...)
 }
 
 // A ServerCodec implements reading of RPC requests and writing of
@@ -671,10 +662,4 @@ type ServerCodec interface {
 	GetMethod() (method string)
 
 	Close() error
-}
-
-// ServeCodec is like ServeConn but uses the specified codec to
-// decode requests and encode responses.
-func ServeCodec(r *http.Request, codec ServerCodec) {
-	DefaultServer.ServeCodec(r, codec, nil)
 }

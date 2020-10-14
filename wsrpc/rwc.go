@@ -2,7 +2,6 @@ package wsrpc
 
 import (
 	"io"
-	"net/http"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -95,38 +94,9 @@ func (rwc *ReadWriteCloser) Write(p []byte) (n int, err error) {
 // Close ...
 func (rwc *ReadWriteCloser) Close() (err error) {
 	err = rwc.WS.Close()
-	rwc.done <- struct{}{}
+	select {
+	case rwc.done <- struct{}{}:
+	default:
+	}
 	return
-}
-
-// ServeRPC ...
-func ServeRPC(r *http.Request, ws *websocket.Conn, server ...*Server) {
-	var s *Server
-
-	rwc := NewReadWriteCloser(ws)
-	codec := NewServerCodec(rwc)
-	if len(server) == 0 {
-		s = DefaultServer
-	} else {
-		s = server[0]
-	}
-
-	s.ServeCodec(r, codec, nil)
-}
-
-// ServeRPCwithInit ...
-func ServeRPCwithInit(r *http.Request, ws *websocket.Conn, onInit ConnHandler,
-	server ...*Server) {
-
-	var s *Server
-
-	rwc := NewReadWriteCloser(ws)
-	codec := NewServerCodec(rwc)
-	if len(server) == 0 {
-		s = DefaultServer
-	} else {
-		s = server[0]
-	}
-
-	s.ServeCodec(r, codec, onInit)
 }

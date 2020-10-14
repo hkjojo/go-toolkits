@@ -65,8 +65,8 @@ func (r *serverRequest) reset() {
 type serverResponse struct {
 	Version string           `json:"jsonrpc"`
 	ID      *json.RawMessage `json:"id"`
-	Result  interface{}      `json:"result"`
-	Error   interface{}      `json:"error"`
+	Result  interface{}      `json:"result,omitempty"`
+	Error   interface{}      `json:"error,omitempty"`
 }
 
 func (c *serverCodec) ReadRequestHeader(r *Request) error {
@@ -148,7 +148,7 @@ func (c *serverCodec) WriteResponse(r *Response, x interface{}) error {
 	return c.enc.Encode(resp)
 }
 
-func (c *serverCodec) WriteNotification(method string, x interface{}) error {
+func (c *serverCodec) WriteNotificationEx(method string, x interface{}) error {
 	return c.enc.Encode(&notification{
 		Version:      "2.0",
 		Method:       method,
@@ -157,7 +157,7 @@ func (c *serverCodec) WriteNotification(method string, x interface{}) error {
 	})
 }
 
-func (c *serverCodec) WriteNotificationEx(method string, x interface{}) error {
+func (c *serverCodec) WriteNotification(method string, x interface{}) error {
 	return c.enc.Encode(&notification{
 		Version:      "2.0",
 		Method:       method,

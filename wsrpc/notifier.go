@@ -8,6 +8,7 @@ import (
 type notify struct {
 	method string
 	data   interface{}
+	isArr  bool
 }
 
 // Notifier ...
@@ -43,7 +44,11 @@ func (n *Notifier) loop() {
 			break
 		}
 
-		n.conn.NotifyEx(notify.method, notify.data)
+		if notify.isArr {
+			n.conn.NotifyEx(notify.method, notify.data)
+		} else {
+			n.conn.Notify(notify.method, notify.data)
+		}
 	}
 }
 
@@ -73,6 +78,28 @@ func (n *Notifier) Notify(method string, data interface{}) error {
 		case n.sending <- &notify{
 			method: method,
 			data:   data,
+		}:
+		default:
+			n.closeLocked()
+			go n.conn.Close()
+			return errors.New("Sending channel is full, conn close")
+		}
+	}
+
+	return nil
+}
+
+// NotifyArr ...
+func (n *Notifier) NotifyArr(method string, data interface{}) error {
+	n.Lock()
+	defer n.Unlock()
+
+	if n.isopen {
+		select {
+		case n.sending <- &notify{
+			method: method,
+			data:   data,
+			isArr:  true,
 		}:
 		default:
 			n.closeLocked()
