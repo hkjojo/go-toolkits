@@ -22,10 +22,11 @@ func rpcInit() {
     })
 
 	rpcSrv.RegisterName("User", &User{})
+	rpcSrv.OnWarp(WrapHandler)
 	rpcSrv.OnMissingMethod(backendHandler)
 }
 
-func serveRPC(c *gin.Context, rpcSrv ...*rpc.Server) {
+func serveRPC(c *gin.Context, rpcSrv *rpc.Server) {
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
@@ -40,9 +41,9 @@ func serveRPC(c *gin.Context, rpcSrv ...*rpc.Server) {
 		return
 	}
 
-	rpc.ServeRPCwithInit(c.Request, ws, func(conn *rpc.Conn) {
+	rpcSrv.OnConnect(c.Request, ws, func(conn *rpc.Conn) {
 		// init connect handler
-	}, rpcSrv...)
+	})
 }
 
 type User struct{}
