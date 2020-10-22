@@ -472,23 +472,6 @@ func (server *Server) ServeCodec(req *http.Request, codec ServerCodec, onInit ..
 		args.RawReq = codec.GetParams()
 		args.Method = codec.GetMethod()
 
-		if err == nil {
-			go func() {
-				var (
-					reply interface{}
-					err   error
-				)
-
-				if server.onWrap != nil {
-					reply, err = server.onWrap(service.call)(conn, args)
-				}
-
-				server.sendResponse(sending, req, reply, codec, err)
-				server.freeRequest(req)
-			}()
-			continue
-		}
-
 		switch err.(type) {
 		case ErrMissingServiceMethod:
 			if server.onMissingMethod != nil {
@@ -499,6 +482,23 @@ func (server *Server) ServeCodec(req *http.Request, codec ServerCodec, onInit ..
 				}()
 				continue
 			}
+		case nil:
+			go func() {
+				var (
+					reply interface{}
+					err   error
+				)
+
+				if server.onWrap != nil {
+					reply, err = server.onWrap(service.call)(conn, args)
+				} else {
+					reply, err = service.call(conn, args)
+				}
+
+				server.sendResponse(sending, req, reply, codec, err)
+				server.freeRequest(req)
+			}()
+			continue
 		}
 
 		// send a response if we actually managed to read a header.
