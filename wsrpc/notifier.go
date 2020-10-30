@@ -13,7 +13,7 @@ type notify struct {
 
 // Notifier ...
 type Notifier struct {
-	sync.Mutex
+	mux     sync.Mutex
 	conn    *Conn
 	sending chan *notify
 	isopen  bool
@@ -54,8 +54,8 @@ func (n *Notifier) loop() {
 
 // Close ...
 func (n *Notifier) Close() {
-	n.Lock()
-	defer n.Unlock()
+	n.mux.Lock()
+	defer n.mux.Unlock()
 
 	n.closeLocked()
 
@@ -70,8 +70,8 @@ func (n *Notifier) closeLocked() {
 
 // Notify ...
 func (n *Notifier) Notify(method string, data interface{}) error {
-	n.Lock()
-	defer n.Unlock()
+	n.mux.Lock()
+	defer n.mux.Unlock()
 
 	if n.isopen {
 		select {
@@ -91,8 +91,8 @@ func (n *Notifier) Notify(method string, data interface{}) error {
 
 // NotifyArr ...
 func (n *Notifier) NotifyArr(method string, data interface{}) error {
-	n.Lock()
-	defer n.Unlock()
+	n.mux.Lock()
+	defer n.mux.Unlock()
 
 	if n.isopen {
 		select {
