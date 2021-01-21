@@ -46,6 +46,8 @@ func (c *Buffer) AddRow(cols ...interface{}) {
 			c.cols = append(c.cols, "\t")
 			continue
 		}
+
+		value = strings.ReplaceAll(value, ",", `","`)
 		c.cols = append(c.cols, value)
 	}
 }
