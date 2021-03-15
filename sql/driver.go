@@ -20,6 +20,7 @@ func NewGorm(dialect, url string) (*gorm.DB, error) {
 	var (
 		dialector gorm.Dialector
 	)
+
 	switch dialect {
 	case "mysql":
 		dialector = mysql.Open(url)
@@ -30,7 +31,9 @@ func NewGorm(dialect, url string) (*gorm.DB, error) {
 	default:
 		return nil, ErrUnsupportDriver
 	}
+
 	return gorm.Open(dialector, &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
 		NamingStrategy: schema.NamingStrategy{
 			SingularTable: true,
 		},
