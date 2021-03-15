@@ -11,7 +11,7 @@ type kv struct {
 func Test_Put(t *testing.T) {
 	InitSource(WithFrom("consul://kvTest"))
 
-	err := Put(&kv{
+	err := ConfigPut(&kv{
 		Data: "put test",
 	}, "123")
 	if err != nil {

@@ -2,18 +2,15 @@ package sql
 
 import (
 	"context"
-	"database/sql"
 	"runtime"
 	"time"
 
 	goqu "github.com/doug-martin/goqu/v9"
 	_ "github.com/doug-martin/goqu/v9/dialect/mysql"
 	_ "github.com/doug-martin/goqu/v9/dialect/sqlite3"
-	_ "github.com/go-sql-driver/mysql"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
 
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
 )
 
 // DefaultDB ...
@@ -52,32 +49,32 @@ func Inject(cfg *Config) {
 
 // Open get opened db instance
 func Open(cfg *Config) (*DataBase, error) {
-	db, err := gorm.Open(cfg.Dialect, cfg.URL)
+	db, err := NewGorm(cfg.Dialect, cfg.URL)
 	if err != nil {
 		return nil, err
 	}
 
-	db.SingularTable(true)
 	if cfg.Debug {
-		db.LogMode(true)
+		db = db.Debug()
 	}
 
+	conn, _ := db.DB()
 	if cfg.MaxOpenConns != 0 {
-		db.DB().SetMaxOpenConns(cfg.MaxOpenConns)
+		conn.SetMaxOpenConns(cfg.MaxOpenConns)
 	}
 
 	if cfg.MaxIdleConns != 0 {
-		db.DB().SetMaxIdleConns(cfg.MaxIdleConns)
+		conn.SetMaxIdleConns(cfg.MaxIdleConns)
 	}
 
 	if cfg.ConnMaxLifetime != 0 {
-		db.DB().SetConnMaxLifetime(cfg.ConnMaxLifetime)
+		conn.SetConnMaxLifetime(cfg.ConnMaxLifetime)
 	}
 
 	return &DataBase{
 		DB:   db,
 		cfg:  cfg,
-		goqu: goqu.New(cfg.Dialect, db.DB()),
+		goqu: goqu.New(cfg.Dialect, conn),
 	}, nil
 }
 
@@ -124,9 +121,9 @@ func (db *DataBase) TransactionCtx(ctx context.Context, f func(*gorm.DB) error) 
 	if _, ok := ctx.Deadline(); db.cfg.TransTimeout != 0 && !ok {
 		ctxt, cancel := context.WithTimeout(ctx, db.cfg.TransTimeout)
 		defer cancel()
-		tx = db.BeginTx(ctxt, &sql.TxOptions{})
+		tx = db.WithContext(ctxt).Begin()
 	} else {
-		tx = db.BeginTx(ctx, &sql.TxOptions{})
+		tx.Begin()
 	}
 
 	defer func() {

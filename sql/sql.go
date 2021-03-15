@@ -4,14 +4,12 @@ import (
 	"database/sql"
 	"fmt"
 	"reflect"
-	"strings"
 
 	goqu "github.com/doug-martin/goqu/v9"
 	"github.com/doug-martin/goqu/v9/exp"
-	"github.com/fatih/structs"
 
 	//	_ "github.com/go-sql-driver/mysql"
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
 )
 
 // QueryOp ..
@@ -329,41 +327,5 @@ func StringOutRows(rows []string, pri ...string) (outs []interface{}) {
 		outs = append(outs, row)
 	}
 
-	return
-}
-
-// GetRows only support default gorm column name
-func GetRows(data interface{}, omit ...string) (outs []string) {
-	fields := structs.Fields(data)
-	for _, f := range fields {
-		// TODO only gorm type
-		if f.Tag("gorm") == "-" || f.Kind() == reflect.Slice {
-			continue
-		}
-		gname := gorm.ToColumnName(f.Name())
-		var skip bool
-		for _, o := range omit {
-			if o == gname {
-				skip = true
-				break
-			}
-		}
-		if skip {
-			continue
-		}
-		outs = append(outs, "`"+gname+"`")
-	}
-
-	return
-}
-
-// PrepareInsertSQL only support default gorm column name
-func PrepareInsertSQL(table string, data interface{}, omit ...string) (result string) {
-	columns := GetRows(data, omit...)
-	var marks []string
-	for i := 0; i < len(columns); i++ {
-		marks = append(marks, "?")
-	}
-	result = fmt.Sprintf("INSERT INTO `%s` (%s) VALUES(%s)", table, strings.Join(columns, ","), strings.Join(marks, ","))
 	return
 }
