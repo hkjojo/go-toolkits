@@ -26,6 +26,11 @@ func Goqu() *goqu.Database {
 	return DefaultDB.Goqu()
 }
 
+// IsNotFound ..
+func IsNotFound(err error) bool {
+	return errors.Is(err, gorm.ErrRecordNotFound)
+}
+
 // Config ..
 type Config struct {
 	Debug           bool
