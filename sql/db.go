@@ -128,7 +128,7 @@ func (db *DataBase) TransactionCtx(ctx context.Context, f func(*gorm.DB) error) 
 		defer cancel()
 		tx = db.WithContext(ctxt).Begin()
 	} else {
-		tx.Begin()
+		tx = db.Begin()
 	}
 
 	defer func() {

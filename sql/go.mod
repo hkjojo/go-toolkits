@@ -1,6 +1,6 @@
 module github.com/hkjojo/go-toolkits/sql
 
-go 1.14
+go 1.16
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.4.1 // indirect
@@ -16,4 +16,10 @@ require (
 	gorm.io/driver/mysql v1.0.5
 	gorm.io/driver/sqlite v1.1.4
 	gorm.io/gorm v1.21.3
+)
+
+retract (
+	v1.1.2
+	v1.1.1
+	v1.1.0
 )
