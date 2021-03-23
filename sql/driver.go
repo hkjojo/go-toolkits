@@ -5,6 +5,8 @@ import (
 	"errors"
 
 	"github.com/doug-martin/goqu/v9"
+	_ "github.com/doug-martin/goqu/v9/dialect/mysql"
+	_ "github.com/doug-martin/goqu/v9/dialect/sqlite3"
 	"gorm.io/driver/clickhouse"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/sqlite"
@@ -16,17 +18,25 @@ var (
 	ErrUnsupportDriver = errors.New("unsupport db driver")
 )
 
-func NewGorm(dialect, url string) (*gorm.DB, error) {
+type Dialect string
+
+const (
+	MySQL      Dialect = "mysql"
+	SQLite3    Dialect = "sqlite3"
+	ClickHouse Dialect = "clickhouse"
+)
+
+func NewGorm(dialect Dialect, url string) (*gorm.DB, error) {
 	var (
 		dialector gorm.Dialector
 	)
 
 	switch dialect {
-	case "mysql":
+	case MySQL:
 		dialector = mysql.Open(url)
-	case "sqlite":
+	case SQLite3:
 		dialector = sqlite.Open(url)
-	case "clickhouse":
+	case ClickHouse:
 		dialector = clickhouse.Open(url)
 	default:
 		return nil, ErrUnsupportDriver
@@ -40,11 +50,13 @@ func NewGorm(dialect, url string) (*gorm.DB, error) {
 	})
 }
 
-func NewGoqu(dialect string, conn *sql.DB) *goqu.Database {
+func NewGoqu(dialect Dialect, conn *sql.DB) (*goqu.Database, error) {
 	switch dialect {
-	case "clickhouse":
-		return goqu.New("mysql", conn)
+	case ClickHouse, MySQL:
+		return goqu.New("mysql", conn), nil
+	case SQLite3:
+		return goqu.New("sqlite3", conn), nil
 	default:
-		return goqu.New(dialect, conn)
+		return nil, ErrUnsupportDriver
 	}
 }

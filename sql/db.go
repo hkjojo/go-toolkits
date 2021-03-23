@@ -6,8 +6,6 @@ import (
 	"time"
 
 	goqu "github.com/doug-martin/goqu/v9"
-	_ "github.com/doug-martin/goqu/v9/dialect/mysql"
-	_ "github.com/doug-martin/goqu/v9/dialect/sqlite3"
 	"github.com/pkg/errors"
 
 	"gorm.io/gorm"
@@ -33,13 +31,13 @@ func IsNotFound(err error) bool {
 
 // Config ..
 type Config struct {
-	Debug           bool
-	Dialect         string
+	Dialect         Dialect
 	URL             string
+	TransTimeout    time.Duration
 	MaxOpenConns    int
 	MaxIdleConns    int
 	ConnMaxLifetime time.Duration
-	TransTimeout    time.Duration
+	Debug           bool
 }
 
 // Inject init db conns, panic if fail
@@ -63,7 +61,11 @@ func Open(cfg *Config) (*DataBase, error) {
 		db = db.Debug()
 	}
 
-	conn, _ := db.DB()
+	conn, err := db.DB()
+	if err != nil {
+		return nil, err
+	}
+
 	if cfg.MaxOpenConns != 0 {
 		conn.SetMaxOpenConns(cfg.MaxOpenConns)
 	}
@@ -76,10 +78,14 @@ func Open(cfg *Config) (*DataBase, error) {
 		conn.SetConnMaxLifetime(cfg.ConnMaxLifetime)
 	}
 
+	goquDB, err := NewGoqu(cfg.Dialect, conn)
+	if err != nil {
+		return nil, err
+	}
 	return &DataBase{
 		DB:   db,
 		cfg:  cfg,
-		goqu: goqu.New(cfg.Dialect, conn),
+		goqu: goquDB,
 	}, nil
 }
 
@@ -147,4 +153,12 @@ func (db *DataBase) TransactionCtx(ctx context.Context, f func(*gorm.DB) error) 
 
 	err = tx.Commit().Error
 	return
+}
+
+// Close ...
+func (db *DataBase) Close() {
+	conn, err := db.Gorm().DB()
+	if err == nil {
+		conn.Close()
+	}
 }
