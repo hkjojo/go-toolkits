@@ -13,10 +13,10 @@ import (
 
 // Consumer ...
 type Consumer struct {
-	topics    []string
 	cg        sarama.ConsumerGroup
-	cancel    context.CancelFunc
 	handler   sarama.ConsumerGroupHandler
+	cancel    context.CancelFunc
+	topics    []string
 	reconnect time.Duration
 }
 
