@@ -1,7 +1,6 @@
 package kafka
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -20,6 +19,7 @@ type Option func(*sarama.Config)
 // Producer ...
 type Producer struct {
 	ap     sarama.AsyncProducer
+	codec  Codec
 	closed bool
 }
 
@@ -40,7 +40,7 @@ func NewProducer(hosts []string, options ...Option) (*Producer, error) {
 		return nil, err
 	}
 
-	producer := &Producer{ap: p}
+	producer := &Producer{ap: p, codec: DefaultCodec}
 	go producer.run()
 	return producer, nil
 }
@@ -67,13 +67,18 @@ func (p *Producer) run() {
 	}
 }
 
+// SetCodec ...
+func (p *Producer) SetCodec(codec Codec) {
+	p.codec = codec
+}
+
 // Publish ...
 func (p *Producer) Publish(topic string, data interface{}) error {
 	if p.closed {
 		return ErrAlreadyClosed
 	}
 
-	encodeData, err := json.Marshal(data)
+	encodeData, err := p.codec.Marshal(data)
 	if err != nil {
 		return err
 	}
@@ -95,6 +100,16 @@ func (p *Producer) PublishString(topic, message string) error {
 	msg := &sarama.ProducerMessage{}
 	msg.Topic = topic
 	msg.Value = sarama.StringEncoder(message)
+
+	p.ap.Input() <- msg
+	return nil
+}
+
+// PublishRawMsg ...
+func (p *Producer) PublishRawMsg(msg *sarama.ProducerMessage) error {
+	if p.closed {
+		return ErrAlreadyClosed
+	}
 
 	p.ap.Input() <- msg
 	return nil
