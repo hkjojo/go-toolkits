@@ -26,7 +26,7 @@ const (
 	ClickHouse Dialect = "clickhouse"
 )
 
-func NewGorm(dialect Dialect, url string) (*gorm.DB, error) {
+func NewGorm(dialect Dialect, url string, opts ...gorm.Option) (*gorm.DB, error) {
 	var (
 		dialector gorm.Dialector
 	)
@@ -42,12 +42,16 @@ func NewGorm(dialect Dialect, url string) (*gorm.DB, error) {
 		return nil, ErrUnsupportDriver
 	}
 
-	return gorm.Open(dialector, &gorm.Config{
+	cfgs := make([]gorm.Option, 0, len(opts)+1)
+	cfgs = append(cfgs, &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
 		NamingStrategy: schema.NamingStrategy{
 			SingularTable: true,
 		},
 	})
+
+	cfgs = append(cfgs, opts...)
+	return gorm.Open(dialector, cfgs...)
 }
 
 func NewGoqu(dialect Dialect, conn *sql.DB) (*goqu.Database, error) {

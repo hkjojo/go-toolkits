@@ -42,17 +42,17 @@ type Config struct {
 
 // Inject init db conns, panic if fail
 // for convenient useage
-func Inject(cfg *Config) {
+func Inject(cfg *Config, opts ...gorm.Option) {
 	var err error
-	DefaultDB, err = Open(cfg)
+	DefaultDB, err = Open(cfg, opts...)
 	if err != nil {
 		panic(err)
 	}
 }
 
 // Open get opened db instance
-func Open(cfg *Config) (*DataBase, error) {
-	db, err := NewGorm(cfg.Dialect, cfg.URL)
+func Open(cfg *Config, opts ...gorm.Option) (*DataBase, error) {
+	db, err := NewGorm(cfg.Dialect, cfg.URL, opts...)
 	if err != nil {
 		return nil, err
 	}
