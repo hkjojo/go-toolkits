@@ -6,16 +6,16 @@ import (
 )
 
 type notify struct {
-	method string
 	data   interface{}
+	method string
 	isArr  bool
 }
 
 // Notifier ...
 type Notifier struct {
-	mux     sync.Mutex
 	conn    *Conn
 	sending chan *notify
+	mux     sync.Mutex
 	isopen  bool
 }
 

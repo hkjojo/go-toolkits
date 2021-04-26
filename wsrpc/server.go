@@ -153,46 +153,46 @@ var typeOfError = reflect.TypeOf((*error)(nil)).Elem()
 var typeOfConn = reflect.TypeOf(&Conn{})
 
 type methodType struct {
-	sync.Mutex // protects counters
-	method     reflect.Method
 	ArgType    reflect.Type
 	ReplyType  reflect.Type
+	method     reflect.Method
 	numCalls   uint
+	sync.Mutex // protects counters
 }
 
 type service struct {
-	name   string                 // name of service
+	method map[string]*methodType // registered methods
 	rcvr   reflect.Value          // receiver of methods for the service
 	typ    reflect.Type           // type of the receiver
-	method map[string]*methodType // registered methods
+	name   string                 // name of service
 }
 
 // Args for Call
 type Args struct {
-	mType  *methodType
-	RawReq json.RawMessage
-	Method string
 	Arg    reflect.Value
 	Reply  reflect.Value
+	Method string
+	mType  *methodType
+	RawReq json.RawMessage
 }
 
 // Request is a header written before every RPC call. It is used internally
 // but documented here as an aid to debugging, such as when analyzing
 // network traffic.
 type Request struct {
+	next          *Request // for free list in Server
 	ServiceMethod string   // format: "Service.Method"
 	Seq           uint64   // sequence number chosen by client
-	next          *Request // for free list in Server
 }
 
 // Response is a header written before every RPC return. It is used internally
 // but documented here as an aid to debugging, such as when analyzing
 // network traffic.
 type Response struct {
-	ServiceMethod string    // echoes that of the Request
-	Seq           uint64    // echoes that of the request
-	Error         string    // error, if any.
 	next          *Response // for free list in Server
+	ServiceMethod string    // echoes that of the Request
+	Error         string    // error, if any.
+	Seq           uint64    // echoes that of the request
 }
 
 // InitHandler ...
@@ -206,15 +206,15 @@ type WrapHandler func(ServiceHandler) ServiceHandler
 
 // Server represents an RPC Server.
 type Server struct {
-	mu         sync.RWMutex // protects the serviceMap
-	serviceMap map[string]*service
-	reqLock    sync.Mutex // protects freeReq
-	freeReq    *Request
-	respLock   sync.Mutex // protects freeResp
-	freeResp   *Response
-
 	onMissingMethod MissingMethodFunc
 	onWrap          WrapHandler
+	serviceMap      map[string]*service
+	freeReq         *Request
+	freeResp        *Response
+
+	mu       sync.RWMutex // protects the serviceMap
+	reqLock  sync.Mutex   // protects freeReq
+	respLock sync.Mutex   // protects freeResp
 }
 
 // MissingMethodFunc conn, method, params
