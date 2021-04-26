@@ -166,7 +166,7 @@ func (db *DataBase) PageQuery(query *goqu.SelectDataset, scaner *gorm.DB, pageIn
 		return 0, err
 	}
 
-	selectQuery = query.
+	selectQuery = selectQuery.
 		Offset(uint((pageIndex - 1) * pageSize)).
 		Limit(uint(pageSize))
 
