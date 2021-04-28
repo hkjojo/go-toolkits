@@ -8,7 +8,6 @@ require (
 	github.com/go-sql-driver/mysql v1.6.0 // indirect
 	github.com/hashicorp/go-version v1.3.0 // indirect
 	github.com/lib/pq v1.3.0 // indirect
-	github.com/mattn/go-sqlite3 v2.0.3+incompatible // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/objx v0.2.0 // indirect
 	gopkg.in/yaml.v2 v2.2.8 // indirect
