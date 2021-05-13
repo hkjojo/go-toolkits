@@ -1,7 +1,10 @@
 package microtools
 
 import (
+	"bufio"
 	"context"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/micro/cli/v2"
@@ -30,6 +33,8 @@ type CmdOptions struct {
 	RegistryAddress      string
 	PreferedNetworks     []string
 	ConfigAddress        string
+	Version              string
+	Environment          string
 
 	ServiceName string
 }
@@ -104,10 +109,21 @@ func InitCmd() error {
 			}
 		}
 
+		options.Version, options.Environment = readVersionInfo()
 		return before(ctx)
 	}
 
 	return cmd.Init()
+}
+
+// Version ...
+func Version() string {
+	return options.Version
+}
+
+// Environment ...
+func Environment() string {
+	return options.Environment
 }
 
 // ServiceTopic ..
@@ -260,4 +276,27 @@ func GetRegisterInternal() time.Duration {
 // SetOptions ...
 func SetOptions(f func(*CmdOptions)) {
 	f(options)
+}
+
+func readVersionInfo() (version, env string) {
+	f, err := os.Open("VERSION")
+	if err != nil {
+		return
+	}
+
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		text := scanner.Text()
+		if strings.HasPrefix(text, "version:") {
+			version = strings.TrimSpace(text[8:])
+			continue
+		}
+
+		if strings.HasPrefix(text, "env:") {
+			env = strings.TrimSpace(text[4:])
+		}
+	}
+	return
 }
