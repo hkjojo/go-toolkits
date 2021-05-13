@@ -6,16 +6,16 @@ import (
 )
 
 type notify struct {
-	method string
 	data   interface{}
+	method string
 	isArr  bool
 }
 
 // Notifier ...
 type Notifier struct {
-	mux     sync.Mutex
 	conn    *Conn
 	sending chan *notify
+	mux     sync.Mutex
 	isopen  bool
 }
 
@@ -70,20 +70,17 @@ func (n *Notifier) closeLocked() {
 
 // Notify ...
 func (n *Notifier) Notify(method string, data interface{}) error {
-	n.mux.Lock()
-	defer n.mux.Unlock()
+	if !n.isopen {
+		return errors.New("notifier closed")
+	}
 
-	if n.isopen {
-		select {
-		case n.sending <- &notify{
-			method: method,
-			data:   data,
-		}:
-		default:
-			n.closeLocked()
-			go n.conn.Close()
-			return errors.New("Sending channel is full, conn close")
-		}
+	select {
+	case n.sending <- &notify{
+		method: method,
+		data:   data,
+	}:
+	default:
+		return errors.New("sending channel is full, conn close")
 	}
 
 	return nil
@@ -91,22 +88,39 @@ func (n *Notifier) Notify(method string, data interface{}) error {
 
 // NotifyArr ...
 func (n *Notifier) NotifyArr(method string, data interface{}) error {
-	n.mux.Lock()
-	defer n.mux.Unlock()
+	if !n.isopen {
+		return errors.New("notifier closed")
+	}
 
-	if n.isopen {
-		select {
-		case n.sending <- &notify{
-			method: method,
-			data:   data,
-			isArr:  true,
-		}:
-		default:
-			n.closeLocked()
-			go n.conn.Close()
-			return errors.New("Sending channel is full, conn close")
-		}
+	select {
+	case n.sending <- &notify{
+		method: method,
+		data:   data,
+		isArr:  true,
+	}:
+	default:
+		return errors.New("sending channel is full, conn close")
 	}
 
 	return nil
+}
+
+// Clean ...
+func (n *Notifier) Clean() {
+	l := len(n.sending)
+	for n.isopen {
+		if l <= 1 {
+			return
+		}
+
+		select {
+		case _, ok := <-n.sending:
+			if !ok {
+				return
+			}
+			l--
+		default:
+			return
+		}
+	}
 }

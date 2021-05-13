@@ -2,18 +2,13 @@ package sql
 
 import (
 	"context"
-	"database/sql"
 	"runtime"
 	"time"
 
 	goqu "github.com/doug-martin/goqu/v9"
-	_ "github.com/doug-martin/goqu/v9/dialect/mysql"
-	_ "github.com/doug-martin/goqu/v9/dialect/sqlite3"
-	_ "github.com/go-sql-driver/mysql"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
 
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
 )
 
 // DefaultDB ...
@@ -29,55 +24,68 @@ func Goqu() *goqu.Database {
 	return DefaultDB.Goqu()
 }
 
+// IsNotFound ..
+func IsNotFound(err error) bool {
+	return errors.Is(err, gorm.ErrRecordNotFound)
+}
+
 // Config ..
 type Config struct {
-	Debug           bool
-	Dialect         string
+	Dialect         Dialect
 	URL             string
+	TransTimeout    time.Duration
 	MaxOpenConns    int
 	MaxIdleConns    int
 	ConnMaxLifetime time.Duration
-	TransTimeout    time.Duration
+	Debug           bool
 }
 
 // Inject init db conns, panic if fail
 // for convenient useage
-func Inject(cfg *Config) {
+func Inject(cfg *Config, opts ...gorm.Option) {
 	var err error
-	DefaultDB, err = Open(cfg)
+	DefaultDB, err = Open(cfg, opts...)
 	if err != nil {
 		panic(err)
 	}
 }
 
 // Open get opened db instance
-func Open(cfg *Config) (*DataBase, error) {
-	db, err := gorm.Open(cfg.Dialect, cfg.URL)
+func Open(cfg *Config, opts ...gorm.Option) (*DataBase, error) {
+	db, err := NewGorm(cfg.Dialect, cfg.URL, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	db.SingularTable(true)
 	if cfg.Debug {
-		db.LogMode(true)
+		db = db.Debug()
+	}
+
+	conn, err := db.DB()
+	if err != nil {
+		return nil, err
 	}
 
 	if cfg.MaxOpenConns != 0 {
-		db.DB().SetMaxOpenConns(cfg.MaxOpenConns)
+		conn.SetMaxOpenConns(cfg.MaxOpenConns)
 	}
 
 	if cfg.MaxIdleConns != 0 {
-		db.DB().SetMaxIdleConns(cfg.MaxIdleConns)
+		conn.SetMaxIdleConns(cfg.MaxIdleConns)
 	}
 
 	if cfg.ConnMaxLifetime != 0 {
-		db.DB().SetConnMaxLifetime(cfg.ConnMaxLifetime)
+		conn.SetConnMaxLifetime(cfg.ConnMaxLifetime)
 	}
 
+	goquDB, err := NewGoqu(cfg.Dialect, conn)
+	if err != nil {
+		return nil, err
+	}
 	return &DataBase{
 		DB:   db,
 		cfg:  cfg,
-		goqu: goqu.New(cfg.Dialect, db.DB()),
+		goqu: goquDB,
 	}, nil
 }
 
@@ -124,9 +132,9 @@ func (db *DataBase) TransactionCtx(ctx context.Context, f func(*gorm.DB) error) 
 	if _, ok := ctx.Deadline(); db.cfg.TransTimeout != 0 && !ok {
 		ctxt, cancel := context.WithTimeout(ctx, db.cfg.TransTimeout)
 		defer cancel()
-		tx = db.BeginTx(ctxt, &sql.TxOptions{})
+		tx = db.WithContext(ctxt).Begin()
 	} else {
-		tx = db.BeginTx(ctx, &sql.TxOptions{})
+		tx = db.Begin()
 	}
 
 	defer func() {
@@ -145,4 +153,12 @@ func (db *DataBase) TransactionCtx(ctx context.Context, f func(*gorm.DB) error) 
 
 	err = tx.Commit().Error
 	return
+}
+
+// Close ...
+func (db *DataBase) Close() {
+	conn, err := db.Gorm().DB()
+	if err == nil {
+		conn.Close()
+	}
 }

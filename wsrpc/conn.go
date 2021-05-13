@@ -6,24 +6,19 @@ import (
 	"net/http"
 )
 
-type notifyEvent struct {
-	method string
-	params interface{}
-}
-
 // ConnCloseHandler ...
 type ConnCloseHandler func()
 
 // Conn ...
 type Conn struct {
-	Request       *http.Request
-	rwc           *ReadWriteCloser
-	codec         ServerCodec
+	codec   ServerCodec
+	Request *http.Request
+	// rwc           *ReadWriteCloser
 	sending       *sync.Mutex
-	closed        bool
-	mu            sync.RWMutex
-	closeHandlers []ConnCloseHandler
 	extraData     map[string]interface{}
+	closeHandlers []ConnCloseHandler
+	mu            sync.RWMutex
+	closed        bool
 }
 
 // NewConn ...

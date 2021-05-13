@@ -14,22 +14,21 @@ import (
 var errMissingParams = errors.New("jsonrpc: request body missing params")
 
 type serverCodec struct {
-	dec *json.Decoder // for reading JSON values
-	enc *json.Encoder // for writing JSON values
-	c   io.Closer
+	c       io.Closer
+	dec     *json.Decoder // for reading JSON values
+	enc     *json.Encoder // for writing JSON values
+	pending map[uint64]*json.RawMessage
 
 	// temporary work space
 	req serverRequest
-
 	// JSON-RPC clients can use arbitrary json values as request IDs.
 	// Package rpc expects uint64 request IDs.
 	// We assign uint64 sequence numbers to incoming requests
 	// but save the original request ID in the pending map.
 	// When rpc responds, we use the sequence number in
 	// the response to find the original request ID.
-	mutex   sync.Mutex // protects seq, pending
-	seq     uint64
-	pending map[uint64]*json.RawMessage
+	seq   uint64
+	mutex sync.Mutex // protects seq, pending
 }
 
 // NewServerCodec returns a new ServerCodec using JSON-RPC on conn.
@@ -43,17 +42,17 @@ func NewServerCodec(conn io.ReadWriteCloser) ServerCodec {
 }
 
 type serverRequest struct {
-	Version string           `json:"jsonrpc"`
-	Method  string           `json:"method"`
 	Params  *json.RawMessage `json:"params"`
 	ID      *json.RawMessage `json:"id"`
+	Version string           `json:"jsonrpc"`
+	Method  string           `json:"method"`
 }
 
 type notification struct {
+	Params       interface{} `json:"params"`
 	Version      string      `json:"jsonrpc"`
 	Method       string      `json:"method"`
-	Notification string      `json:"notification"` //Field for rpc-websockets
-	Params       interface{} `json:"params"`
+	Notification string      `json:"notification"`
 }
 
 func (r *serverRequest) reset() {
@@ -63,10 +62,10 @@ func (r *serverRequest) reset() {
 }
 
 type serverResponse struct {
-	Version string           `json:"jsonrpc"`
-	ID      *json.RawMessage `json:"id"`
 	Result  interface{}      `json:"result,omitempty"`
 	Error   interface{}      `json:"error,omitempty"`
+	ID      *json.RawMessage `json:"id"`
+	Version string           `json:"jsonrpc"`
 }
 
 func (c *serverCodec) ReadRequestHeader(r *Request) error {
