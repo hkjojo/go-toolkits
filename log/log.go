@@ -237,3 +237,8 @@ func getDir(path string) string {
 		"/",
 	)
 }
+
+// WithExt ...
+func (s *SugaredLogger) WithExt(args ...interface{}) *SugaredLogger {
+	return &SugaredLogger{s.SugaredLogger.With(args...)}
+}
