@@ -34,7 +34,9 @@ func Start(opts ...Option) error {
 
 // Stop ...
 func Stop() {
-	defaultCollector.stop()
+	if defaultCollector != nil {
+		defaultCollector.stop()
+	}
 }
 
 // Push ...
@@ -93,9 +95,11 @@ func (c *collector) collect() {
 }
 
 func (c *collector) publish(msg proto.Message) {
-	data, _ := c.cfg.codec.Marshal(msg)
-	c.cfg.broker.Publish(c.cfg.topic, &broker.Message{
-		Header: map[string]string{}, // TODO:
-		Body:   data,
-	})
+	if c.cfg.broker != nil {
+		data, _ := c.cfg.codec.Marshal(msg)
+		c.cfg.broker.Publish(c.cfg.topic, &broker.Message{
+			Header: map[string]string{}, // TODO:
+			Body:   data,
+		})
+	}
 }
