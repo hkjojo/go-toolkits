@@ -283,10 +283,14 @@ func (db *DataBase) QueryFirst(query *goqu.SelectDataset, scaner *gorm.DB,
 		return err
 	}
 
-	// use gorm to scan rows
-	err = scaner.Raw(sql, args...).Limit(1).Find(outRows).Error
-	if err != nil {
-		return err
+	// use gorm to scan
+	tx := scaner.Raw(sql, args...).Limit(1).Find(outRows)
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	if tx.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
 	}
 
 	return nil
