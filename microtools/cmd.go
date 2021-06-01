@@ -138,7 +138,7 @@ func ServiceName(str []string) string {
 
 // WithServiceContext ..
 func WithServiceContext(ctx context.Context) context.Context {
-	return mmetadata.Set(ctx, "service", GetServiceName())
+	return mmetadata.Set(ctx, "service", GetServerName())
 }
 
 // GetContextService get service name from context
