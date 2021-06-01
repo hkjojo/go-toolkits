@@ -17,7 +17,7 @@ type config struct {
 	topic           string
 	queueSize       int
 
-	endpoints []func() proto.Message
+	endpoints []func() []proto.Message
 }
 
 // Option ...
@@ -38,7 +38,7 @@ func WithTopic(topic string) Option {
 	}
 }
 
-// WithKafkaAddr ...
+// WithBroker ...
 func WithBroker(broker broker.Broker) Option {
 	return func(cfg *config) {
 		cfg.broker = broker
@@ -53,7 +53,7 @@ func WithInterval(d time.Duration) Option {
 }
 
 // WithEndpoint ...
-func WithEndpoint(f func() proto.Message) Option {
+func WithEndpoint(f func() []proto.Message) Option {
 	return func(cfg *config) {
 		cfg.endpoints = append(cfg.endpoints, f)
 	}

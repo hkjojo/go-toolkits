@@ -90,16 +90,18 @@ func (c *collector) stop() {
 
 func (c *collector) collect() {
 	for _, ep := range c.cfg.endpoints {
-		c.publish(ep())
+		c.publish(ep()...)
 	}
 }
 
-func (c *collector) publish(msg proto.Message) {
+func (c *collector) publish(msgs ...proto.Message) {
 	if c.cfg.broker != nil {
-		data, _ := c.cfg.codec.Marshal(msg)
-		c.cfg.broker.Publish(c.cfg.topic, &broker.Message{
-			Header: map[string]string{}, // TODO:
-			Body:   data,
-		})
+		for _, msg := range msgs {
+			data, _ := c.cfg.codec.Marshal(msg)
+			c.cfg.broker.Publish(c.cfg.topic, &broker.Message{
+				Header: map[string]string{}, // TODO:
+				Body:   data,
+			})
+		}
 	}
 }
