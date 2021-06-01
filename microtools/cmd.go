@@ -155,6 +155,20 @@ func GetContextService(ctx context.Context) string {
 	return ""
 }
 
+// GetContextServerName get server name from context
+func GetContextServerName(ctx context.Context) string {
+	serviceName := GetContextService(ctx)
+	if serviceName != "" {
+		index := strings.LastIndex(serviceName, "-")
+		if index == len(serviceName)-1 {
+			return ""
+		}
+		serviceName = serviceName[strings.LastIndex(serviceName, "-")+1:]
+	}
+
+	return serviceName
+}
+
 // Prefix ..
 func Prefix(strs []string) (result string) {
 	result = FormatStrings(strs)
