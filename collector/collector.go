@@ -108,10 +108,8 @@ func (c *collector) stop() {
 }
 
 func (c *collector) collect(ep *endpoint) {
-	for _, msg := range ep.f() {
-		if err := c.push(msg); err != nil && c.cfg.errorFunc != nil {
-			c.cfg.errorFunc(err)
-		}
+	if err := c.push(ep.f()); err != nil && c.cfg.errorFunc != nil {
+		c.cfg.errorFunc(err)
 	}
 }
 

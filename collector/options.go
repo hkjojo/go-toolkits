@@ -21,7 +21,7 @@ type config struct {
 }
 
 type endpoint struct {
-	f               func() []proto.Message
+	f               func() proto.Message
 	collectInterval time.Duration
 }
 
@@ -58,14 +58,14 @@ func WithInterval(d time.Duration) Option {
 }
 
 // WithEndpoint ...
-func WithEndpoint(f func() []proto.Message) Option {
+func WithEndpoint(f func() proto.Message) Option {
 	return func(cfg *config) {
 		cfg.endpoints = append(cfg.endpoints, &endpoint{f, 0})
 	}
 }
 
 // WithIntervalEndpoint ...
-func WithIntervalEndpoint(interval time.Duration, f func() []proto.Message) Option {
+func WithIntervalEndpoint(interval time.Duration, f func() proto.Message) Option {
 	return func(cfg *config) {
 		cfg.endpoints = append(cfg.endpoints, &endpoint{f, interval})
 	}
