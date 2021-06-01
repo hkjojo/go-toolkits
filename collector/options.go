@@ -16,8 +16,13 @@ type config struct {
 	collectInterval time.Duration
 	topic           string
 	queueSize       int
+	errorFunc       func(err error)
+	endpoints       []*endpoint
+}
 
-	endpoints []func() []proto.Message
+type endpoint struct {
+	f               func() []proto.Message
+	collectInterval time.Duration
 }
 
 // Option ...
@@ -55,7 +60,14 @@ func WithInterval(d time.Duration) Option {
 // WithEndpoint ...
 func WithEndpoint(f func() []proto.Message) Option {
 	return func(cfg *config) {
-		cfg.endpoints = append(cfg.endpoints, f)
+		cfg.endpoints = append(cfg.endpoints, &endpoint{f, 0})
+	}
+}
+
+// WithIntervalEndpoint ...
+func WithIntervalEndpoint(interval time.Duration, f func() []proto.Message) Option {
+	return func(cfg *config) {
+		cfg.endpoints = append(cfg.endpoints, &endpoint{f, interval})
 	}
 }
 
@@ -63,5 +75,12 @@ func WithEndpoint(f func() []proto.Message) Option {
 func WithMsgCodec(codec codec.Marshaler) Option {
 	return func(cfg *config) {
 		cfg.codec = codec
+	}
+}
+
+// WithErrorCallback ...
+func WithErrorCallback(f func(error)) Option {
+	return func(cfg *config) {
+		cfg.errorFunc = f
 	}
 }

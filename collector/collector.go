@@ -58,19 +58,38 @@ func newCollector(opts ...Option) (*collector, error) {
 }
 
 func (c *collector) run() {
-	ticker := time.NewTicker(c.cfg.collectInterval)
-	defer ticker.Stop()
-
+	c.runTicker()
 	for {
 		select {
 		case msg := <-c.queue:
 			c.publish(msg)
-		case <-ticker.C:
-			go c.collect()
 		case <-c.quit:
 			return
 		}
 	}
+}
+
+func (c *collector) runTicker() {
+	for _, ep := range c.cfg.endpoints {
+		go func(ep *endpoint) {
+			var interval = ep.collectInterval
+			if interval == 0 {
+				interval = c.cfg.collectInterval
+			}
+			ticker := time.NewTicker(interval)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-ticker.C:
+					go c.collect(ep)
+				case <-c.quit:
+					return
+				}
+			}
+		}(ep)
+	}
+
 }
 
 func (c *collector) push(msg proto.Message) error {
@@ -88,9 +107,11 @@ func (c *collector) stop() {
 	})
 }
 
-func (c *collector) collect() {
-	for _, ep := range c.cfg.endpoints {
-		c.publish(ep()...)
+func (c *collector) collect(ep *endpoint) {
+	for _, msg := range ep.f() {
+		if err := c.push(msg); err != nil && c.cfg.errorFunc != nil {
+			c.cfg.errorFunc(err)
+		}
 	}
 }
 
@@ -98,10 +119,12 @@ func (c *collector) publish(msgs ...proto.Message) {
 	if c.cfg.broker != nil {
 		for _, msg := range msgs {
 			data, _ := c.cfg.codec.Marshal(msg)
-			c.cfg.broker.Publish(c.cfg.topic, &broker.Message{
+			if err := c.cfg.broker.Publish(c.cfg.topic, &broker.Message{
 				Header: map[string]string{}, // TODO:
 				Body:   data,
-			})
+			}); err != nil && c.cfg.errorFunc != nil {
+				c.cfg.errorFunc(err)
+			}
 		}
 	}
 }
