@@ -14,10 +14,9 @@ import (
 // Consumer ...
 type Consumer struct {
 	cg        sarama.ConsumerGroup
-	handler   sarama.ConsumerGroupHandler
 	cancel    context.CancelFunc
 	topics    []string
-	reconnect time.Duration
+	Reconnect time.Duration
 }
 
 // NewConsumer ...
@@ -48,53 +47,47 @@ func NewConsumer(hosts, topics []string, groupName string, options ...Option) (*
 	return &Consumer{
 		topics:    topics,
 		cg:        cg,
-		handler:   &ConsumHandler{},
-		reconnect: cfg.Consumer.Group.Heartbeat.Interval,
+		Reconnect: cfg.Consumer.Group.Heartbeat.Interval,
 	}, nil
 }
 
-// SetHandler ...
-func (c *Consumer) SetHandler(h sarama.ConsumerGroupHandler) {
-	c.handler = h
-}
-
 // Run ...
-func (c *Consumer) Run() {
+func (c *Consumer) Run(handler sarama.ConsumerGroupHandler) {
 	if c.cancel != nil {
 		return
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	c.cancel = cancel
+
 	go func() {
 		fmt.Println("kafka consume start...")
-
-		ctx, cancel := context.WithCancel(context.Background())
-		c.cancel = cancel
-
 		for {
 			if err := c.cg.Consume(
-				ctx,
+				context.Background(),
 				c.topics,
-				c.handler,
+				handler,
 			); err != nil && !errors.Is(err, io.EOF) {
 				log.Printf("kafka consume fail, error: %s\n", err.Error())
+				time.Sleep(c.Reconnect)
 			}
 
-			if c.cancel == nil {
+			select {
+			case <-ctx.Done():
 				fmt.Println("kafka consume stop...")
 				return
+			default:
+				fmt.Println("kafka consume retry...")
 			}
 
-			time.Sleep(c.reconnect)
-			fmt.Println("kafka consume retry...")
 		}
 	}()
 }
 
 // Close ...
 func (c *Consumer) Close() {
-	cancel := c.cancel
+	c.cancel()
 	c.cancel = nil
-	cancel()
 	c.cg.Close()
 }
 
@@ -104,6 +97,7 @@ type ConsumHandler struct {
 
 // ConsumeClaim ..
 func (h *ConsumHandler) ConsumeClaim(sess sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
+	fmt.Println("*start consume*")
 	for msg := range claim.Messages() {
 		fmt.Printf(
 			"===================================================\ntopic:%s\nmessage:%s\ntime:%s\n\n",
