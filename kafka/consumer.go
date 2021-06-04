@@ -15,7 +15,9 @@ import (
 type Consumer struct {
 	cg        sarama.ConsumerGroup
 	cancel    context.CancelFunc
+	client    sarama.Client
 	topics    []string
+	group     string
 	Reconnect time.Duration
 }
 
@@ -47,6 +49,8 @@ func NewConsumer(hosts, topics []string, groupName string, options ...Option) (*
 	return &Consumer{
 		topics:    topics,
 		cg:        cg,
+		client:    client,
+		group:     groupName,
 		Reconnect: cfg.Consumer.Group.Heartbeat.Interval,
 	}, nil
 }
@@ -82,6 +86,15 @@ func (c *Consumer) Run(handler sarama.ConsumerGroupHandler) {
 
 		}
 	}()
+}
+
+func (c *Consumer) DeleteGroup() error {
+	admin, err := sarama.NewClusterAdminFromClient(c.client)
+	if err != nil {
+		return err
+	}
+
+	return admin.DeleteConsumerGroup(c.group)
 }
 
 // Close ...
