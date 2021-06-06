@@ -23,19 +23,19 @@ var (
 	DefaultWriteTimeout   = 5 * time.Second
 	LuaFileSuffix         = ".lua"
 
-	p *Pool
+	rdsPool *Pool
 )
 
 type Config struct {
 	MasterAddr string
+	Script     string
 	Sentinels  []string
 	ReadOnly   bool
-	Script     string
 }
 
 type Script struct {
-	KeyCount int
 	Src      string
+	KeyCount int
 }
 
 type ReplyFunc func(interface{}, error) error
@@ -43,16 +43,16 @@ type ReplyFunc func(interface{}, error) error
 func Init(conf *Config, loadScript func(string, string)) error {
 	switch {
 	case len(conf.Sentinels) != 0:
-		p = NewSentinel(conf.Sentinels, conf.ReadOnly)
+		rdsPool = NewSentinel(conf.Sentinels, conf.ReadOnly)
 	case len(conf.MasterAddr) != 0:
-		p = New(conf.MasterAddr)
+		rdsPool = New(conf.MasterAddr)
 	default:
 		return errors.New("redis address empty")
 	}
-	if err := p.pool.Get().Err(); err != nil {
+	if err := rdsPool.Get().Err(); err != nil {
 		return err
 	}
-	return p.loadScript(conf.Script, loadScript)
+	return rdsPool.loadScript(conf.Script, loadScript)
 }
 
 // New ...
@@ -161,11 +161,11 @@ func NewSentinel(url []string, readOnly bool) *Pool {
 
 // SendScript ...
 func SendScript(script string, f ReplyFunc, args ...interface{}) error {
-	s := p.scripts[script]
+	s := rdsPool.scripts[script]
 	if s == nil {
 		return errors.New("not found script")
 	}
-	var conn = p.pool.Get()
+	var conn = rdsPool.Get()
 	defer conn.Close()
 	replay, err := s.Do(conn, args...)
 	if f != nil {
@@ -176,11 +176,11 @@ func SendScript(script string, f ReplyFunc, args ...interface{}) error {
 
 // BulkScript ...
 func BulkScript(script string, args [][]interface{}) error {
-	s := p.scripts[script]
+	s := rdsPool.scripts[script]
 	if s == nil {
 		return errors.New("not found script")
 	}
-	var conn = p.pool.Get()
+	var conn = rdsPool.Get()
 	defer conn.Close()
 
 	for _, arg := range args {
@@ -194,7 +194,7 @@ func BulkScript(script string, args [][]interface{}) error {
 // Set ...
 func Set(key, value string) error {
 	var (
-		conn = p.pool.Get()
+		conn = rdsPool.Get()
 		err  error
 	)
 
@@ -211,7 +211,7 @@ func Set(key, value string) error {
 // GetSet ...
 func GetSet(key, value string) (string, error) {
 	var (
-		conn = p.pool.Get()
+		conn = rdsPool.Get()
 		err  error
 	)
 
@@ -229,7 +229,7 @@ func GetSet(key, value string) (string, error) {
 // SetNX ...
 func SetNX(key, value string) (int, error) {
 	var (
-		conn = p.pool.Get()
+		conn = rdsPool.Get()
 		err  error
 		ret  int
 	)
@@ -246,7 +246,7 @@ func SetNX(key, value string) (int, error) {
 
 // SetEX ...
 func SetEX(key, value string, seconds int) (int, error) {
-	var conn = p.pool.Get()
+	var conn = rdsPool.Get()
 	defer conn.Close()
 
 	return redis.Int(conn.Do("SETEX", key, seconds, value))
@@ -255,7 +255,7 @@ func SetEX(key, value string, seconds int) (int, error) {
 // HSet ...
 func HSet(key string, field, value string) error {
 	var (
-		conn = p.pool.Get()
+		conn = rdsPool.Get()
 		err  error
 	)
 
@@ -272,7 +272,7 @@ func HSet(key string, field, value string) error {
 // HIncrBy ...
 func HIncrBy(key string, field string, value int) (int, error) {
 	var (
-		conn = p.pool.Get()
+		conn = rdsPool.Get()
 	)
 
 	defer conn.Close()
@@ -283,7 +283,7 @@ func HIncrBy(key string, field string, value int) (int, error) {
 // HMSet ...
 func HMSet(key string, value interface{}) error {
 	var (
-		conn = p.pool.Get()
+		conn = rdsPool.Get()
 		err  error
 	)
 
@@ -296,7 +296,7 @@ func HMSet(key string, value interface{}) error {
 // BulkHMSet ...
 func BulkHMSet(values map[string]interface{}) error {
 	var (
-		conn = p.pool.Get()
+		conn = rdsPool.Get()
 		err  error
 	)
 
@@ -312,7 +312,7 @@ func BulkHMSet(values map[string]interface{}) error {
 // SAdd ...
 func SAdd(key string, member string) error {
 	var (
-		conn = p.pool.Get()
+		conn = rdsPool.Get()
 	)
 
 	defer conn.Close()
@@ -323,7 +323,7 @@ func SAdd(key string, member string) error {
 // SRem ...
 func SRem(key string, member string) error {
 	var (
-		conn = p.pool.Get()
+		conn = rdsPool.Get()
 	)
 
 	defer conn.Close()
@@ -334,7 +334,7 @@ func SRem(key string, member string) error {
 // Smembers ...
 func Smembers(key string) ([]string, error) {
 	var (
-		conn = p.pool.Get()
+		conn = rdsPool.Get()
 	)
 
 	defer conn.Close()
@@ -344,7 +344,7 @@ func Smembers(key string) ([]string, error) {
 // HGet ...
 func HGet(key string, field string) (string, error) {
 	var (
-		conn = p.pool.Get()
+		conn = rdsPool.Get()
 	)
 
 	defer conn.Close()
@@ -355,7 +355,7 @@ func HGet(key string, field string) (string, error) {
 // HGetAll ...
 func HGetAll(key string, value interface{}) error {
 	var (
-		conn = p.pool.Get()
+		conn = rdsPool.Get()
 		err  error
 	)
 
@@ -377,7 +377,7 @@ func HGetAll(key string, value interface{}) error {
 func Get(key string) (string, error) {
 
 	var (
-		conn  = p.pool.Get()
+		conn  = rdsPool.Get()
 		err   error
 		value string
 	)
@@ -400,7 +400,7 @@ func Get(key string) (string, error) {
 // Note: Use SCAN instead of KEYS, KEYS will block the server
 func ScanHGets(key string, f func([]interface{}) error) error {
 	var (
-		conn   = p.pool.Get()
+		conn   = rdsPool.Get()
 		err    error
 		values []interface{}
 		keys   []string
@@ -447,7 +447,7 @@ func ScanHGets(key string, f func([]interface{}) error) error {
 // Note: Use SCAN instead of KEYS, KEYS will block the server
 func ScanDels(key string) error {
 	var (
-		conn = p.pool.Get()
+		conn = rdsPool.Get()
 		err  error
 		keys []string
 	)
@@ -483,7 +483,7 @@ func ScanDels(key string) error {
 // Dels ...
 func Dels(key ...interface{}) error {
 	var (
-		conn = p.pool.Get()
+		conn = rdsPool.Get()
 		err  error
 	)
 
@@ -498,14 +498,14 @@ func Dels(key ...interface{}) error {
 
 // Do ...
 func Do(command string, args ...interface{}) (interface{}, error) {
-	conn := p.pool.Get()
+	conn := rdsPool.Get()
 	defer conn.Close()
 	return conn.Do(command, args...)
 }
 
 // UnderlyingPool ...
 func UnderlyingPool() *redis.Pool {
-	return p.pool
+	return rdsPool.pool
 }
 
 // ParseURL ...
