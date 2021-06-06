@@ -40,6 +40,14 @@ type Script struct {
 
 type ReplyFunc func(interface{}, error) error
 
+func Close() {
+	rdsPool.Close()
+}
+
+func Default() *Pool {
+	return rdsPool
+}
+
 func Init(conf *Config, loadScript func(string, string)) error {
 	switch {
 	case len(conf.Sentinels) != 0:
