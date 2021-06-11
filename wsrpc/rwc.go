@@ -28,11 +28,11 @@ func (rwc *ReadWriteCloser) ping() {
 	t := time.NewTicker(time.Second * 5)
 	defer t.Stop()
 
-	for range t.C {
+	for {
 		select {
 		case <-rwc.done:
 			return
-		default:
+		case <-t.C:
 			if err := rwc.WS.WriteControl(websocket.PingMessage,
 				[]byte{}, time.Now().Add(time.Second*5),
 			); err != nil {
@@ -78,13 +78,9 @@ func (rwc *ReadWriteCloser) Write(p []byte) (n int, err error) {
 		m, err = w.Write(p)
 		n += m
 		if err != nil {
-			break
+			err = rwc.Close()
+			return
 		}
-	}
-
-	if err != nil {
-		err = rwc.Close()
-		return
 	}
 
 	w.Close()
@@ -93,10 +89,7 @@ func (rwc *ReadWriteCloser) Write(p []byte) (n int, err error) {
 
 // Close ...
 func (rwc *ReadWriteCloser) Close() (err error) {
+	close(rwc.done)
 	err = rwc.WS.Close()
-	select {
-	case rwc.done <- struct{}{}:
-	default:
-	}
 	return
 }
