@@ -16,6 +16,16 @@ func StringInSlice(v string, list []string) bool {
 	return false
 }
 
+// IntInSlice ...
+func IntInSlice(v int, list []int) bool {
+	for _, k := range list {
+		if k == v {
+			return true
+		}
+	}
+	return false
+}
+
 // Match pattern is &&
 func Match(value, pattern string) bool {
 	if pattern == "" {
