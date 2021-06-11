@@ -71,3 +71,13 @@ func (p *Pool) loadScript(script string, loadScript func(string, string)) error 
 			return nil
 		})
 }
+
+// Close ...
+func (p *Pool) Close() {
+	p.pool.Close()
+}
+
+// Get ...
+func (p *Pool) Get() redis.Conn {
+	return p.pool.Get()
+}
