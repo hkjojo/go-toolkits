@@ -73,7 +73,8 @@ func (c *serverCodec) ReadRequestHeader(r *Request) error {
 	if err := c.dec.Decode(&c.req); err != nil {
 		return err
 	}
-	r.ServiceMethod = c.req.Method
+
+	r.ServiceMethod = c.GetMethod()
 
 	// JSON request id can be any JSON value;
 	// RPC package expects uint64.  Translate to
@@ -84,32 +85,32 @@ func (c *serverCodec) ReadRequestHeader(r *Request) error {
 	c.req.ID = nil
 	r.Seq = c.seq
 	c.mutex.Unlock()
-
 	return nil
 }
 
-func (c *serverCodec) ReadRequestBody(x interface{}) error {
+func (c *serverCodec) ReadRequestBody(x interface{}) (err error) {
 	if c.req.Params == nil {
-		return errMissingParams
+		err = errMissingParams
+		return
 	}
 
 	if x == nil {
-		return nil
+		return
 	}
 
-	// JSON params structured object. Unmarshal to the args object.
-	if err := json.Unmarshal(*c.req.Params, x); err != nil {
+	switch (*c.req.Params)[0] {
+	case '[':
 		// Clearly JSON params is not a structured object,
 		// fallback and attempt an unmarshal with JSON params as
 		// array value and RPC params is struct. Unmarshal into
 		// array containing the request struct.
 		params := [1]interface{}{x}
-		if err = json.Unmarshal(*c.req.Params, &params); err != nil {
-			return err
-		}
+		err = json.Unmarshal(*c.req.Params, &params)
+	default:
+		// JSON params structured object. Unmarshal to the args object.
+		err = json.Unmarshal(*c.req.Params, x)
 	}
-
-	return nil
+	return
 }
 
 // GetParams ...
