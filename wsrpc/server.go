@@ -153,27 +153,25 @@ var typeOfError = reflect.TypeOf((*error)(nil)).Elem()
 var typeOfConn = reflect.TypeOf(&Conn{})
 
 type methodType struct {
-	ArgType    reflect.Type
-	ReplyType  reflect.Type
-	method     reflect.Method
-	numCalls   uint
-	sync.Mutex // protects counters
+	ArgType   reflect.Type
+	ReplyType reflect.Type
+	method    reflect.Method
 }
 
 type service struct {
-	method map[string]*methodType // registered methods
-	rcvr   reflect.Value          // receiver of methods for the service
 	typ    reflect.Type           // type of the receiver
+	method map[string]*methodType // registered methods
 	name   string                 // name of service
+	rcvr   reflect.Value          // receiver of methods for the service
 }
 
 // Args for Call
 type Args struct {
-	Arg    reflect.Value
-	Reply  reflect.Value
 	Method string
 	mType  *methodType
 	RawReq json.RawMessage
+	Arg    reflect.Value
+	Reply  reflect.Value
 }
 
 // Request is a header written before every RPC call. It is used internally
@@ -211,6 +209,7 @@ type Server struct {
 	serviceMap      map[string]*service
 	freeReq         *Request
 	freeResp        *Response
+	logger          Logger
 
 	mu       sync.RWMutex // protects the serviceMap
 	reqLock  sync.Mutex   // protects freeReq
@@ -231,7 +230,10 @@ func (err ErrMissingServiceMethod) Error() string {
 
 // NewServer returns a new Server.
 func NewServer() *Server {
-	return &Server{serviceMap: make(map[string]*service)}
+	return &Server{
+		serviceMap: make(map[string]*service),
+		logger:     &log{},
+	}
 }
 
 // DefaultServer is the default instance of *Server.
@@ -246,6 +248,14 @@ func isExported(name string) bool {
 // OnMissingMethod ...
 func (server *Server) OnMissingMethod(handler MissingMethodFunc) {
 	server.onMissingMethod = handler
+}
+
+// SetLogger ...
+func (server *Server) SetLogger(logger Logger) {
+	if logger == nil {
+		logger = &log{}
+	}
+	server.logger = logger
 }
 
 // OnWrap ...
@@ -288,6 +298,19 @@ func (server *Server) RegisterName(name string, rcvr interface{}) error {
 	return server.register(rcvr, name, true)
 }
 
+// ListMethods ...
+func (server *Server) ListMethods() []string {
+	server.mu.RLock()
+	var list = make([]string, 0, len(server.serviceMap))
+	for _, service := range server.serviceMap {
+		for method := range service.method {
+			list = append(list, service.name+"."+method)
+		}
+	}
+	server.mu.RUnlock()
+	return list
+}
+
 func (server *Server) register(rcvr interface{}, name string, useName bool) error {
 	server.mu.Lock()
 	defer server.mu.Unlock()
@@ -315,13 +338,13 @@ func (server *Server) register(rcvr interface{}, name string, useName bool) erro
 	s.name = sname
 
 	// Install the methods
-	s.method = suitableMethods(s.typ, true)
+	s.method = server.suitableMethods(s.typ, true)
 
 	if len(s.method) == 0 {
 		str := ""
 
 		// To help the user, see if a pointer receiver would work.
-		method := suitableMethods(reflect.PtrTo(s.typ), false)
+		method := server.suitableMethods(reflect.PtrTo(s.typ), false)
 		if len(method) != 0 {
 			str = "rpc.Register: type " + sname + " has no exported methods of suitable type (hint: pass a pointer to value of that type)"
 		} else {
@@ -334,8 +357,8 @@ func (server *Server) register(rcvr interface{}, name string, useName bool) erro
 }
 
 // suitableMethods returns suitable Rpc methods of typ, it will report
-// error using log if reportErr is true.
-func suitableMethods(typ reflect.Type, reportErr bool) map[string]*methodType {
+// error using log if isLog is true.
+func (server *Server) suitableMethods(typ reflect.Type, isLog bool) map[string]*methodType {
 	methods := make(map[string]*methodType)
 	for m := 0; m < typ.NumMethod(); m++ {
 		method := typ.Method(m)
@@ -347,53 +370,53 @@ func suitableMethods(typ reflect.Type, reportErr bool) map[string]*methodType {
 		}
 		// Method needs three ins: receiver, *args, *reply.
 		if mtype.NumIn() != 4 {
-			if reportErr {
-				fmt.Println("method", mname, "has wrong number of ins:", mtype.NumIn())
+			if isLog {
+				server.logger.Errorf("method:%s has wrong number of ins:%d\n", mname, mtype.NumIn())
 			}
 			continue
 		}
 		// Second arg need not be a pointer.
 		argType := mtype.In(1)
 		if !isConnType(argType) {
-			if reportErr {
-				fmt.Println(mname, "first argument is not Conn")
+			if isLog {
+				server.logger.Errorf("%s first argument is not Conn\n", mname)
 			}
 			continue
 		}
 		// Second arg need not be a pointer.
 		argType = mtype.In(2)
 		if !isExportedOrBuiltinType(argType) {
-			if reportErr {
-				fmt.Println(mname, "argument type not exported:", argType)
+			if isLog {
+				server.logger.Errorf("method:%s argument type not exported:%v\n", mname, argType)
 			}
 			continue
 		}
 		// Third arg must be a pointer.
 		replyType := mtype.In(3)
 		if replyType.Kind() != reflect.Ptr {
-			if reportErr {
-				fmt.Println("method", mname, "reply type not a pointer:", replyType)
+			if isLog {
+				server.logger.Errorf("method:%s reply type not a pointer:%v\n", mname, replyType)
 			}
 			continue
 		}
 		// Reply type must be exported.
 		if !isExportedOrBuiltinType(replyType) {
-			if reportErr {
-				fmt.Println("method", mname, "reply type not exported:", replyType)
+			if isLog {
+				server.logger.Errorf("method:%s reply type not exported:%v\n", mname, replyType)
 			}
 			continue
 		}
 		// Method needs one out.
 		if mtype.NumOut() != 1 {
-			if reportErr {
-				fmt.Println("method", mname, "has wrong number of outs:", mtype.NumOut())
+			if isLog {
+				server.logger.Errorf("method:%s has wrong number of outs:%d\n", mname, mtype.NumOut())
 			}
 			continue
 		}
 		// The return type of the method must be error.
 		if returnType := mtype.Out(0); returnType != typeOfError {
-			if reportErr {
-				fmt.Println("method", mname, "returns", returnType.String(), "not error")
+			if isLog {
+				server.logger.Errorf("method:%s returns:%s, not error\n", mname, returnType.String())
 			}
 			continue
 		}
@@ -419,23 +442,13 @@ func (server *Server) sendResponse(sending *sync.Mutex, req *Request, reply inte
 	sending.Lock()
 	err := codec.WriteResponse(resp, reply)
 	if debugLog && err != nil {
-		fmt.Println("rpc: writing response:", err)
+		server.logger.Errorf("rpc: writing response:", err)
 	}
 	sending.Unlock()
 	server.freeResponse(resp)
 }
 
-func (m *methodType) NumCalls() (n uint) {
-	m.Lock()
-	n = m.numCalls
-	m.Unlock()
-	return n
-}
-
 func (s *service) call(conn *Conn, args *Args) (resp interface{}, err error) {
-	args.mType.Lock()
-	args.mType.numCalls++
-	args.mType.Unlock()
 	function := args.mType.method.Func
 	// Invoke the method, providing a new value for the reply.
 	returnValues := function.Call([]reflect.Value{s.rcvr,
@@ -461,52 +474,54 @@ func (server *Server) ServeCodec(req *http.Request, codec ServerCodec, onInit ..
 	}
 
 	for {
-		service, req, args, keepReading, err := server.readRequest(codec)
-		if debugLog && err != nil && err != io.EOF {
-			fmt.Println(err)
-		}
-		if !keepReading {
+		// new request
+		req, err := server.read(codec)
+		if err != nil {
+			if !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+				server.logger.Errorf("read request:%s\n", err)
+			}
 			break
 		}
 
-		args.RawReq = codec.GetParams()
-		args.Method = codec.GetMethod()
-
-		switch err.(type) {
-		case ErrMissingServiceMethod:
+		// get service
+		service, mType, err := server.getService(req)
+		if err != nil {
+			// on missing method
 			if server.onMissingMethod != nil {
-				go func() {
-					reply, err := server.onMissingMethod(conn, args.Method, args.RawReq)
+				go func(method string, params json.RawMessage) {
+					reply, err := server.onMissingMethod(conn, method, params)
 					server.sendResponse(sending, req, reply, codec, err)
 					server.freeRequest(req)
-				}()
+				}(codec.GetMethod(), codec.GetParams())
 				continue
 			}
-		case nil:
-			go func() {
-				var (
-					reply interface{}
-					err   error
-				)
+			server.logger.Errorf("%s\n", err)
+		}
 
-				if server.onWrap != nil {
-					reply, err = server.onWrap(service.call)(conn, args)
-				} else {
-					reply, err = service.call(conn, args)
-				}
-
-				server.sendResponse(sending, req, reply, codec, err)
-				server.freeRequest(req)
-			}()
+		reqArgs, err := server.getArgs(codec, mType)
+		if err != nil {
+			server.logger.Errorf("read request body:%s", err)
+			// send a response if we actually managed to read a header.
+			server.sendResponse(sending, req, invalidRequest, codec, err)
+			server.freeRequest(req)
 			continue
 		}
 
-		// send a response if we actually managed to read a header.
-		if req != nil {
-			server.sendResponse(sending, req, invalidRequest, codec, err)
-			server.freeRequest(req)
-		}
+		go func(args *Args) {
+			var (
+				reply interface{}
+				err   error
+			)
 
+			if server.onWrap != nil {
+				reply, err = server.onWrap(service.call)(conn, args)
+			} else {
+				reply, err = service.call(conn, args)
+			}
+
+			server.sendResponse(sending, req, reply, codec, err)
+			server.freeRequest(req)
+		}(reqArgs)
 	}
 
 	conn.ternimating()
@@ -557,20 +572,11 @@ func (server *Server) freeResponse(resp *Response) {
 	server.respLock.Unlock()
 }
 
-func (server *Server) readRequest(codec ServerCodec,
-) (service *service, req *Request, args *Args, keepReading bool, err error) {
-	args = &Args{}
-	service, req, args.mType, keepReading, err = server.readRequestHeader(codec)
-	if err != nil {
-		if !keepReading {
-			return
-		}
-		// discard body
-		readErr := codec.ReadRequestBody(nil)
-		if readErr != nil {
-			err = readErr
-		}
-		return
+func (server *Server) getArgs(codec ServerCodec, mType *methodType) (*Args, error) {
+	args := &Args{
+		mType:  mType,
+		Method: codec.GetMethod(),
+		RawReq: codec.GetParams(),
 	}
 
 	// Decode the argument value.
@@ -583,54 +589,46 @@ func (server *Server) readRequest(codec ServerCodec,
 	}
 
 	// argv guaranteed to be a pointer now.
-	if err = codec.ReadRequestBody(args.Arg.Interface()); err != nil {
-		return
+	if err := codec.ReadRequestBody(args.Arg.Interface()); err != nil {
+		return nil, err
 	}
 	if argIsValue {
 		args.Arg = args.Arg.Elem()
 	}
 
 	args.Reply = reflect.New(args.mType.ReplyType.Elem())
-	return
+	return args, nil
 }
 
-func (server *Server) readRequestHeader(codec ServerCodec,
-) (service *service, req *Request, mtype *methodType, keepReading bool, err error) {
-	// Grab the request header.
-	req = server.getRequest()
-	err = codec.ReadRequestHeader(req)
-	if err != nil {
-		req = nil
-		if err == io.EOF || err == io.ErrUnexpectedEOF {
-			return
-		}
-		err = errors.New("rpc: server cannot decode request: " + err.Error())
-		return
-	}
-
-	// We read the header successfully. If we see an error now,
-	// we can still recover and move on to the next request.
-	keepReading = true
-
+func (server *Server) getService(req *Request) (*service, *methodType, error) {
 	dot := strings.LastIndex(req.ServiceMethod, ".")
 	if dot < 0 {
-		err = errors.New("rpc: service/method request ill-formed: " + req.ServiceMethod)
-		return
+		return nil, nil, errors.New("rpc: service/method request ill-formed: " + req.ServiceMethod)
 	}
 	serviceName := req.ServiceMethod[:dot]
 	methodName := req.ServiceMethod[dot+1:]
 
 	// Look up the request.
 	server.mu.RLock()
-	service = server.serviceMap[serviceName]
+	service := server.serviceMap[serviceName]
 	server.mu.RUnlock()
 	if service == nil {
-		err = ErrMissingServiceMethod{"rpc: can't find service " + req.ServiceMethod}
-		return
+		return nil, nil, errors.New("rpc: can't find service " + serviceName)
 	}
-	mtype = service.method[methodName]
+
+	mtype := service.method[methodName]
 	if mtype == nil {
-		err = ErrMissingServiceMethod{"rpc: can't find service " + req.ServiceMethod}
+		return nil, nil, errors.New("rpc: can't find service method " + req.ServiceMethod)
+	}
+	return service, mtype, nil
+}
+
+func (server *Server) read(codec ServerCodec) (req *Request, err error) {
+	// Grab the request header.
+	req = server.getRequest()
+	err = codec.ReadRequestHeader(req)
+	if err != nil {
+		err = fmt.Errorf("rpc server cannot decode request: %w", err)
 	}
 	return
 }
