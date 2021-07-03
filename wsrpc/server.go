@@ -129,8 +129,6 @@ package wsrpc
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
 	"net/http"
 	"reflect"
 	"strings"
@@ -477,7 +475,7 @@ func (server *Server) ServeCodec(req *http.Request, codec ServerCodec, onInit ..
 		// new request
 		req, err := server.read(codec)
 		if err != nil {
-			if !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+			if _, ok := err.(*websocket.CloseError); !ok {
 				server.logger.Errorf("read request:%s\n", err)
 			}
 			break
@@ -627,9 +625,6 @@ func (server *Server) read(codec ServerCodec) (req *Request, err error) {
 	// Grab the request header.
 	req = server.getRequest()
 	err = codec.ReadRequestHeader(req)
-	if err != nil {
-		err = fmt.Errorf("rpc server cannot decode request: %w", err)
-	}
 	return
 }
 
