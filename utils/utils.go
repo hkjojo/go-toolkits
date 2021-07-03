@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"io"
+	"math/rand"
 	"strings"
 )
 
@@ -133,4 +134,30 @@ func LineCounter(r io.Reader) (int, error) {
 			return count, err
 		}
 	}
+}
+
+var MaxRange = 100
+
+// RandPct ...
+func RandPct(pct uint) bool {
+	if pct == 0 {
+		return false
+	}
+	if pct == uint(MaxRange) {
+		return true
+	}
+	return RandInt(1, MaxRange) <= int(pct)
+}
+
+// RandInt [min,max]
+func RandInt(min, max int) int {
+	if max < min {
+		min, max = max, min
+	}
+
+	if max == min {
+		return min
+	}
+
+	return rand.Intn(max-min+1) + min
 }
