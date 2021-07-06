@@ -2,30 +2,21 @@ package utils
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 )
 
 var (
 	nameRgbMap map[string]string
 	rgbNameMap map[string]string
-	rgbRegex   *regexp.Regexp
 )
 
 func init() {
-	var err error
-
 	nameRgbMap = make(map[string]string)
 	rgbNameMap = make(map[string]string)
 	for name, rgb := range _colorNameMap {
 		name = strings.ToUpper(name)
 		nameRgbMap[name] = rgb
 		rgbNameMap[rgb] = name
-	}
-
-	rgbRegex, err = regexp.Compile("^#(?:[0-9a-fA-F]{3}){1,2}$")
-	if err != nil {
-		panic(err)
 	}
 }
 
@@ -54,11 +45,7 @@ func ColorEq(color uint, value string) (bool, error) {
 		rgb = value
 	}
 
-	if !rgbRegex.MatchString(rgb) {
-		return false, fmt.Errorf("color format error")
-	}
-
-	return strings.ToUpper(rgb) == toRGB(color), nil
+	return rgb == toRGB(color), nil
 }
 
 func toRGB(color uint) string {
