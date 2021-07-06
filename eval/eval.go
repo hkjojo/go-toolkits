@@ -10,7 +10,12 @@ import (
 
 var ErrParameter = errors.New("parameter err")
 
-func GetMatcher(expr string, test interface{}) (expression *govaluate.EvaluableExpression, err error) {
+func GenMatcher(expr string, test interface{}) (*govaluate.EvaluableExpression, error) {
+	return GenMatcherWithFuncs(expr, test, nil)
+}
+
+func GenMatcherWithFuncs(expr string, test interface{}, funcs map[string]govaluate.ExpressionFunction,
+) (expression *govaluate.EvaluableExpression, err error) {
 	functions := map[string]govaluate.ExpressionFunction{
 		"match":   matchFunc,
 		"any":     anyFunc,
@@ -18,6 +23,11 @@ func GetMatcher(expr string, test interface{}) (expression *govaluate.EvaluableE
 		"coloreq": colorEqFunc,
 		"in":      inFunc,
 	}
+
+	for name, f := range funcs {
+		functions[name] = f
+	}
+
 	expression, err = govaluate.NewEvaluableExpressionWithFunctions(expr, functions)
 	if err != nil {
 		return
