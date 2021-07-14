@@ -161,3 +161,15 @@ func RandInt(min, max int) int {
 
 	return rand.Intn(max-min+1) + min
 }
+
+// RandFloat [min,max]
+func RandFloat(min, max float64) float64 {
+	if max < min {
+		min, max = max, min
+	}
+
+	if max == min {
+		return min
+	}
+	return min + rand.Float64()*(max-min)
+}
