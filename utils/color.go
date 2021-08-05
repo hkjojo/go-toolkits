@@ -2,19 +2,15 @@ package utils
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 )
 
 var (
 	nameRgbMap map[string]string
 	rgbNameMap map[string]string
-	rgbRegex   *regexp.Regexp
 )
 
 func init() {
-	var err error
-
 	nameRgbMap = make(map[string]string)
 	rgbNameMap = make(map[string]string)
 	for name, rgb := range _colorNameMap {
@@ -22,14 +18,9 @@ func init() {
 		nameRgbMap[name] = rgb
 		rgbNameMap[rgb] = name
 	}
-
-	rgbRegex, err = regexp.Compile("^#(?:[0-9a-fA-F]{3}){1,2}$")
-	if err != nil {
-		panic(err)
-	}
 }
 
-// ConvMtColor ...
+// ConvMtColor mt color convert to hex color
 func ConvMtColor(color uint32) uint32 {
 	var r = color & 0x000000FF
 	var g = color & 0x0000FF00
@@ -39,12 +30,12 @@ func ConvMtColor(color uint32) uint32 {
 	return a + r<<16 + g + b>>16
 }
 
-// ToColorName ...
+// ToColorName hex color convert to color name
 func ToColorName(color uint) string {
 	return rgbNameMap[toRGB(color)]
 }
 
-// ColorEq value: "#rrggbb" or "color name"
+// ColorEq color: hex color, value: "#rrggbb" or "color name"
 func ColorEq(color uint, value string) (bool, error) {
 	value = strings.Replace(value, " ", "", -1)
 	value = strings.ToUpper(value)
@@ -54,11 +45,7 @@ func ColorEq(color uint, value string) (bool, error) {
 		rgb = value
 	}
 
-	if !rgbRegex.MatchString(rgb) {
-		return false, fmt.Errorf("color format error")
-	}
-
-	return strings.ToUpper(rgb) == toRGB(color), nil
+	return rgb == toRGB(color), nil
 }
 
 func toRGB(color uint) string {

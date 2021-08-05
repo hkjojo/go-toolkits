@@ -1,0 +1,6 @@
+github.com/Knetic/govaluate v3.0.0+incompatible h1:7o6+MAPhYTCF0+fdvoz1xDedhRb4f6s9Tn1Tt7/WTEg=
+github.com/Knetic/govaluate v3.0.0+incompatible/go.mod h1:r7JcOSlj0wfOMncg0iLm8Leh48TZaKVeNIfJntJ2wa0=
+github.com/fatih/structs v1.1.0 h1:Q7juDM0QtcnhCpeyLGQKyg4TOIghuNXrkL32pHAUMxo=
+github.com/fatih/structs v1.1.0/go.mod h1:9NiDSp5zOcgEDl+j00MP/WkGVPOlPRLejGD8Ga6PJ7M=
+github.com/hkjojo/go-toolkits/utils v0.0.4 h1:DXN2kTb0R54nAl6LMQS3AlVtaDyauSHBafgZsfZ1UeI=
+github.com/hkjojo/go-toolkits/utils v0.0.4/go.mod h1:FsnRj5vqCd7q2Vcw3HjJfU91cgtW2O2kRRWslHnnS8k=
