@@ -67,3 +67,26 @@ func TestAny(t *testing.T) {
 		})
 	}
 }
+
+func TestFloatDigits(t *testing.T) {
+	tests := []struct {
+		name string
+		arg  float64
+		want int
+	}{
+		{"case 1", 1.0, 0},
+		{"case 2", 1, 0},
+		{"case 3", 0.1, 1},
+		{"case 4", 1.120, 2},
+		{"case 5", 1.0000000001, 10},
+		{"case 6", 2.220000000000000003, 2},
+		{"case 7", 2.220000000000003, 15},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := FloatDigits(tt.arg); got != tt.want {
+				t.Errorf("FloatDigits() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
