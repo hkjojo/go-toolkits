@@ -105,7 +105,7 @@ func trigger(o *Observable, event string, arguments []reflect.Value) *Observable
 		o.dispatchEvent(s, arguments)
 	}
 	// trigger the all events callback whenever this event was defined
-	if o.hasEvent(ALL_EVENTS_NAMESPACE) && event != ALL_EVENTS_NAMESPACE {
+	if event != ALL_EVENTS_NAMESPACE {
 		o.dispatchEvent(ALL_EVENTS_NAMESPACE, append([]reflect.Value{reflect.ValueOf(event)}, arguments...))
 	}
 	return o
