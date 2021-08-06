@@ -485,7 +485,8 @@ func (server *Server) ServeCodec(req *http.Request, codec ServerCodec, onInit ..
 		service, mType, err := server.getService(req)
 		if err != nil {
 			if server.onMissingMethod == nil {
-				server.logger.Errorf("%s\n", err)
+				server.sendResponse(sending, req, invalidRequest, codec, err)
+				server.freeRequest(req)
 				continue
 			}
 
