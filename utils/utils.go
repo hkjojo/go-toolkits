@@ -2,7 +2,6 @@ package utils
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"math"
 	"math/rand"
@@ -174,16 +173,6 @@ func RandFloat(min, max float64) float64 {
 		return min
 	}
 	return min + rand.Float64()*(max-min)
-}
-
-// FloatDigits ...
-func FloatDigits(v float64) int {
-	numstr := fmt.Sprint(v)
-	tmp := strings.Split(numstr, ".")
-	if len(tmp) <= 1 {
-		return 0
-	}
-	return len(tmp[1])
 }
 
 // Round ...
