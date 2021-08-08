@@ -484,16 +484,18 @@ func (server *Server) ServeCodec(req *http.Request, codec ServerCodec, onInit ..
 		// get service
 		service, mType, err := server.getService(req)
 		if err != nil {
-			// on missing method
-			if server.onMissingMethod != nil {
-				go func(method string, params json.RawMessage) {
-					reply, err := server.onMissingMethod(conn, method, params)
-					server.sendResponse(sending, req, reply, codec, err)
-					server.freeRequest(req)
-				}(codec.GetMethod(), codec.GetParams())
+			if server.onMissingMethod == nil {
+				server.logger.Errorf("%s\n", err)
 				continue
 			}
-			server.logger.Errorf("%s\n", err)
+
+			// on missing method
+			go func(method string, params json.RawMessage) {
+				reply, err := server.onMissingMethod(conn, method, params)
+				server.sendResponse(sending, req, reply, codec, err)
+				server.freeRequest(req)
+			}(codec.GetMethod(), codec.GetParams())
+			continue
 		}
 
 		reqArgs, err := server.getArgs(codec, mType)

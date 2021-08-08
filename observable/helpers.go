@@ -11,13 +11,8 @@ func (o *Observable) addCallback(s string, fn reflect.Value, isUnique bool, isTy
 	// lock the struct
 	o.Lock()
 	defer o.Unlock()
-	// does this namespace already exist?
-	if !o.hasEvent(s) {
-		o.Callbacks[s] = make([]callback, 1)
-		o.Callbacks[s][0] = callback{fn, isUnique, isTyped, false}
-	} else if !isUnique {
-		o.Callbacks[s] = append(o.Callbacks[s], callback{fn, isUnique, isTyped, false})
-	}
+
+	o.Callbacks[s] = append(o.Callbacks[s], callback{fn, isUnique, isTyped, false})
 }
 
 // remove the events bound to the callback
@@ -26,9 +21,7 @@ func (o *Observable) removeEvent(s string, fn reflect.Value) {
 	o.Lock()
 	defer o.Unlock()
 
-	if o.hasEvent(s) {
-		o.remove(s, fn)
-	}
+	o.remove(s, fn)
 }
 
 func (o *Observable) remove(s string, fn reflect.Value) {
@@ -62,35 +55,27 @@ func (o *Observable) cleanEvent(event string) {
 func (o *Observable) dispatchEvent(s string, arguments []reflect.Value) *Observable {
 	// lock the struct
 	o.RLock()
-	defer o.RUnlock()
+	callbacks := o.Callbacks[s]
+	o.RUnlock()
 
-	// check if the observable has already created this events map
-	if o.hasEvent(s) {
-		// loop all the callbacks
-		// avoiding to call twice the ones registered with Observable.One
-		for i, cb := range o.Callbacks[s] {
-			if !cb.isUnique || (cb.isUnique && !cb.wasCalled) {
-				// if the callback was registered with multiple events
-				// we prepend the event namespace to the function arguments
-				if cb.isTyped {
-					cb.fn.Call(append([]reflect.Value{reflect.ValueOf(s)}, arguments...))
-				} else {
-					cb.fn.Call(arguments)
-				}
+	// loop all the callbacks
+	// avoiding to call twice the ones registered with Observable.One
+	for i, cb := range callbacks {
+		if !cb.isUnique || (cb.isUnique && !cb.wasCalled) {
+			// if the callback was registered with multiple events
+			// we prepend the event namespace to the function arguments
+			if cb.isTyped {
+				cb.fn.Call(append([]reflect.Value{reflect.ValueOf(s)}, arguments...))
+			} else {
+				cb.fn.Call(arguments)
 			}
+		}
 
-			o.Callbacks[s][i].wasCalled = true
-			if cb.isUnique {
-				go o.removeEvent(s, cb.fn)
-			}
+		callbacks[i].wasCalled = true
+		if cb.isUnique {
+			o.removeEvent(s, cb.fn)
 		}
 	}
 
 	return o
-}
-
-// check whether the Observable struct has already registered the event namespace
-func (o *Observable) hasEvent(event string) bool {
-	_, ok := o.Callbacks[event]
-	return ok
 }
