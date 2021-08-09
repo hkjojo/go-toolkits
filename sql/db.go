@@ -40,14 +40,12 @@ type Config struct {
 	Debug           bool
 }
 
-// Inject init db conns, panic if fail
+// Inject init db conns
 // for convenient useage
-func Inject(cfg *Config, opts ...gorm.Option) {
+func Inject(cfg *Config, opts ...gorm.Option) error {
 	var err error
 	DefaultDB, err = Open(cfg, opts...)
-	if err != nil {
-		panic(err)
-	}
+	return err
 }
 
 // Open get opened db instance
