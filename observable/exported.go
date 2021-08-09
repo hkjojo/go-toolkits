@@ -1,34 +1,21 @@
 package observable
 
-import (
-	"reflect"
-)
-
 // On default On
 func On(event string, cb interface{}) *Observable {
-	fn := reflect.ValueOf(cb)
-	return on(observer, event, fn)
+	return obsrv.On(event, cb)
 }
 
 // Trigger default Trigger
 func Trigger(event string, params ...interface{}) *Observable {
-	// get the arguments we want to pass to our listeners callbaks
-	arguments := make([]reflect.Value, len(params))
-
-	// get all the arguments
-	for i, param := range params {
-		arguments[i] = reflect.ValueOf(param)
-	}
-	return trigger(observer, event, arguments)
+	return obsrv.Trigger(event, params...)
 }
 
 // Off default Off
 func Off(event string, args ...interface{}) *Observable {
-	return off(observer, event, args...)
+	return obsrv.Off(event, args...)
 }
 
-// One default One
-func One(event string, cb interface{}) *Observable {
-	fn := reflect.ValueOf(cb)
-	return one(observer, event, fn)
+// Once default Once
+func Once(event string, cb interface{}) *Observable {
+	return obsrv.Once(event, cb)
 }

@@ -180,7 +180,7 @@ func TestOne(t *testing.T) {
 		n++
 	}
 
-	o.One("foo", onFoo)
+	o.Once("foo", onFoo)
 
 	o.Trigger("foo").Trigger("foo").Trigger("foo")
 
