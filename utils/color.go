@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -36,7 +37,7 @@ func ToColorName(color uint) string {
 }
 
 // ColorEq color: hex color, value: "#rrggbb" or "color name"
-func ColorEq(color uint, value string) (bool, error) {
+func ColorEq(color uint, value string) bool {
 	value = strings.Replace(value, " ", "", -1)
 	value = strings.ToUpper(value)
 
@@ -45,7 +46,7 @@ func ColorEq(color uint, value string) (bool, error) {
 		rgb = value
 	}
 
-	return rgb == toRGB(color), nil
+	return rgb == toRGB(color)
 }
 
 func toRGB(color uint) string {
@@ -55,6 +56,23 @@ func toRGB(color uint) string {
 	}
 
 	return fmt.Sprintf("#%06X", color)
+}
+
+func ToColor64(value string) (int64, bool) {
+	value = strings.Replace(value, " ", "", -1)
+	value = strings.ToUpper(value)
+
+	rgb := nameRgbMap[value]
+	if rgb == "" {
+		rgb = value
+	}
+	rgb = strings.TrimPrefix(rgb, "0x")           //过滤掉16进制前缀
+	rgb = strings.TrimPrefix(rgb, "#")            //过滤掉16进制前缀
+	color64, err := strconv.ParseInt(rgb, 16, 64) //字串到数据整型
+	if err != nil {
+		return 0, false
+	}
+	return color64, true
 }
 
 var _colorNameMap = map[string]string{
