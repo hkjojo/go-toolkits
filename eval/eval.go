@@ -108,7 +108,7 @@ func colorEqFunc(args ...interface{}) (interface{}, error) {
 	if !ok {
 		return false, ErrParameter
 	}
-	return utils.ColorEq(uint(color), rgbName)
+	return utils.ColorEq(uint(color), rgbName), nil
 }
 
 func inFunc(args ...interface{}) (interface{}, error) {
