@@ -2,6 +2,7 @@ package eval
 
 import (
 	"errors"
+	"time"
 
 	"github.com/Knetic/govaluate"
 	"github.com/fatih/structs"
@@ -17,11 +18,12 @@ func GenMatcher(expr string, test interface{}) (*govaluate.EvaluableExpression, 
 func GenMatcherWithFuncs(expr string, test interface{}, funcs map[string]govaluate.ExpressionFunction,
 ) (expression *govaluate.EvaluableExpression, err error) {
 	functions := map[string]govaluate.ExpressionFunction{
-		"match":   matchFunc,
-		"any":     anyFunc,
-		"range":   rangeFunc,
-		"coloreq": colorEqFunc,
-		"in":      inFunc,
+		"match":    matchFunc,
+		"any":      anyFunc,
+		"range":    rangeFunc,
+		"coloreq":  colorEqFunc,
+		"in":       inFunc,
+		"duration": duration,
 	}
 
 	for name, f := range funcs {
@@ -133,4 +135,18 @@ func inFunc(args ...interface{}) (interface{}, error) {
 		}
 	}
 	return false, nil
+}
+
+// duration time parse duration
+func duration(args ...interface{}) (interface{}, error) {
+	if len(args) != 1 {
+		return false, errors.New("")
+	}
+	value, ok := args[0].(string)
+	if !ok {
+		return false, errors.New("")
+	}
+
+	duration, err := time.ParseDuration(value)
+	return float64(duration), err
 }
