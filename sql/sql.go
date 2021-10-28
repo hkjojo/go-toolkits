@@ -207,6 +207,79 @@ func (db *DataBase) QueryCount(query *goqu.SelectDataset, selectEx ...interface{
 	return count, nil
 }
 
+// PageQueryWithExplain ...
+func (db *DataBase) PageQueryWithExplain(query *goqu.SelectDataset, scaner *gorm.DB, pageIndex int64,
+	pageSize int64, outRows interface{}, selectEx ...interface{}) (int64, error) {
+	var selectQuery = query
+	if selectEx != nil {
+		selectQuery = query.Select(selectEx...)
+	}
+
+	count, err := db.QueryCountWithExplain(query, selectEx...)
+	if err != nil {
+		return 0, err
+	}
+
+	selectQuery = selectQuery.
+		Offset(uint((pageIndex - 1) * pageSize)).
+		Limit(uint(pageSize))
+
+	sql, args, err := selectQuery.Prepared(true).ToSQL()
+	if err != nil {
+		return 0, err
+	}
+
+	// use gorm to scan rows
+	result := scaner.Raw(sql, args...).Find(outRows)
+	if result.Error != nil {
+		return 0, result.Error
+	}
+
+	return count, nil
+}
+
+// QueryCountWithExplain ...
+func (db *DataBase) QueryCountWithExplain(query *goqu.SelectDataset, selectEx ...interface{}) (int64, error) {
+	var (
+		selectQuery = query
+	)
+
+	if selectEx != nil {
+		selectQuery = query.Select(selectEx...)
+	}
+
+	sql, args, err := db.goqu.From(selectQuery.As("query_count")).Select(goqu.COUNT(goqu.L("*"))).Prepared(true).ToSQL()
+	if err != nil {
+		return 0, err
+	}
+	rows, err := db.Raw(fmt.Sprintf("explain %s", sql), args...).Rows()
+	if err != nil {
+		return 0, err
+	}
+	result, err := db.convertToExplainResult(rows)
+	if err != nil {
+		return 0, err
+	}
+	return result.Rows, nil
+}
+
+func (db *DataBase) convertToExplainResult(rows *sql.Rows) (*ExplainResult, error) {
+	defer rows.Close()
+	for rows.Next() {
+		result := &ExplainResult{}
+		if err := db.ScanRows(rows, result); err != nil {
+			return nil, err
+		}
+		return result, nil
+	}
+
+	return nil, gorm.ErrRecordNotFound
+}
+
+type ExplainResult struct {
+	Rows int64
+}
+
 // Query ...
 func (db *DataBase) Query(query *goqu.SelectDataset, scaner *gorm.DB,
 	outRows interface{}, selectEx ...interface{}) error {
