@@ -475,9 +475,14 @@ func (server *Server) ServeCodec(req *http.Request, codec ServerCodec, onInit ..
 		// new request
 		req, err := server.read(codec)
 		if err != nil {
-			if _, ok := err.(*websocket.CloseError); !ok {
-				server.logger.Errorf("read request:%s\n", err)
+			if _, ok := err.(*websocket.CloseError); ok {
+				break
 			}
+			if strings.Contains(err.Error(), "use of closed network connection") {
+				break
+			}
+
+			server.logger.Errorf("read request:%s\n", err)
 			break
 		}
 
