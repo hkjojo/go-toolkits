@@ -6,9 +6,11 @@ import (
 
 	"github.com/doug-martin/goqu/v9"
 	_ "github.com/doug-martin/goqu/v9/dialect/mysql"
+	_ "github.com/doug-martin/goqu/v9/dialect/postgres"
 	_ "github.com/doug-martin/goqu/v9/dialect/sqlite3"
 	"gorm.io/driver/clickhouse"
 	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
@@ -24,6 +26,7 @@ const (
 	MySQL      Dialect = "mysql"
 	SQLite3    Dialect = "sqlite3"
 	ClickHouse Dialect = "clickhouse"
+	Postgres   Dialect = "postgres"
 )
 
 func NewGorm(dialect Dialect, url string, opts ...gorm.Option) (*gorm.DB, error) {
@@ -38,6 +41,11 @@ func NewGorm(dialect Dialect, url string, opts ...gorm.Option) (*gorm.DB, error)
 		dialector = sqlite.Open(url)
 	case ClickHouse:
 		dialector = clickhouse.Open(url)
+	case Postgres:
+		dialector = postgres.New(postgres.Config{
+			DSN:                  url,
+			PreferSimpleProtocol: true, // disables implicit prepared statement usage
+		})
 	default:
 		return nil, ErrUnsupportDriver
 	}
@@ -60,6 +68,8 @@ func NewGoqu(dialect Dialect, conn *sql.DB) (*goqu.Database, error) {
 		return goqu.New("mysql", conn), nil
 	case SQLite3:
 		return goqu.New("sqlite3", conn), nil
+	case Postgres:
+		return goqu.New("postgres", conn), nil
 	default:
 		return nil, ErrUnsupportDriver
 	}
