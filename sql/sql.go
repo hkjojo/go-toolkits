@@ -170,7 +170,7 @@ func (db *DataBase) PageQuery(query *goqu.SelectDataset, scaner *gorm.DB, pageIn
 		Offset(uint((pageIndex - 1) * pageSize)).
 		Limit(uint(pageSize))
 
-	sql, args, err := selectQuery.Prepared(true).ToSQL()
+	sql, args, err := selectQuery.ToSQL()
 	if err != nil {
 		return 0, err
 	}
@@ -195,7 +195,7 @@ func (db *DataBase) QueryCount(query *goqu.SelectDataset, selectEx ...interface{
 		selectQuery = query.Select(selectEx...)
 	}
 
-	sql, args, err := db.goqu.From(selectQuery.As("query_count")).Select(goqu.COUNT(goqu.L("*"))).Prepared(true).ToSQL()
+	sql, args, err := db.goqu.From(selectQuery.As("query_count")).Select(goqu.COUNT(goqu.L("*"))).ToSQL()
 	if err != nil {
 		return 0, err
 	}
@@ -224,7 +224,7 @@ func (db *DataBase) PageQueryWithExplain(query *goqu.SelectDataset, scaner *gorm
 		Offset(uint((pageIndex - 1) * pageSize)).
 		Limit(uint(pageSize))
 
-	sql, args, err := selectQuery.Prepared(true).ToSQL()
+	sql, args, err := selectQuery.ToSQL()
 	if err != nil {
 		return 0, err
 	}
@@ -248,7 +248,7 @@ func (db *DataBase) QueryCountWithExplain(query *goqu.SelectDataset, selectEx ..
 		selectQuery = query.Select(selectEx...)
 	}
 
-	sql, args, err := db.goqu.From(selectQuery.As("query_count")).Select(goqu.COUNT(goqu.L("*"))).Prepared(true).ToSQL()
+	sql, args, err := db.goqu.From(selectQuery.As("query_count")).Select(goqu.COUNT(goqu.L("*"))).ToSQL()
 	if err != nil {
 		return 0, err
 	}
@@ -289,7 +289,7 @@ func (db *DataBase) Query(query *goqu.SelectDataset, scaner *gorm.DB,
 		selectQuery = query.Select(selectEx...)
 	}
 
-	sql, args, err := selectQuery.Prepared(true).ToSQL()
+	sql, args, err := selectQuery.ToSQL()
 	if err != nil {
 		return err
 	}
@@ -311,7 +311,7 @@ func (db *DataBase) QueryAll(query *goqu.SelectDataset,
 		selectQuery = query.Select(selectEx...)
 	}
 
-	sql, args, err := selectQuery.Prepared(true).ToSQL()
+	sql, args, err := selectQuery.ToSQL()
 	if err != nil {
 		return err
 	}
@@ -327,7 +327,7 @@ func (db *DataBase) QueryAll(query *goqu.SelectDataset,
 
 // QueryPluck ...
 func (db *DataBase) QueryPluck(query *goqu.SelectDataset, pluckColumn string, outRows interface{}) error {
-	sql, args, err := query.Prepared(true).ToSQL()
+	sql, args, err := query.ToSQL()
 	if err != nil {
 		return err
 	}
@@ -351,7 +351,7 @@ func (db *DataBase) QueryFirst(query *goqu.SelectDataset, scaner *gorm.DB,
 		selectQuery = query.Select(selectEx...)
 	}
 
-	sql, args, err := selectQuery.Prepared(true).ToSQL()
+	sql, args, err := selectQuery.ToSQL()
 	if err != nil {
 		return err
 	}
@@ -376,7 +376,7 @@ func (db *DataBase) QueryRows(sqlBuilder *goqu.SelectDataset, scaner *gorm.DB,
 	if selectEx != nil {
 		selectQuery = selectQuery.Select(selectEx...)
 	}
-	sql, args, err := selectQuery.Prepared(true).ToSQL()
+	sql, args, err := selectQuery.ToSQL()
 	if err != nil {
 		return nil, err
 	}
