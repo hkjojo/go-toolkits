@@ -9,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 )
 
 // DefaultDB ...
@@ -42,15 +43,24 @@ type Config struct {
 
 // Inject init db conns
 // for convenient useage
-func Inject(cfg *Config, opts ...gorm.Option) error {
+func Inject(cfg *Config, dialector gorm.Dialector, opts ...gorm.Option) error {
 	var err error
-	DefaultDB, err = Open(cfg, opts...)
+	DefaultDB, err = Open(cfg, dialector, opts...)
 	return err
 }
 
 // Open get opened db instance
-func Open(cfg *Config, opts ...gorm.Option) (*DataBase, error) {
-	db, err := NewGorm(cfg.Dialect, cfg.URL, opts...)
+func Open(cfg *Config, dialector gorm.Dialector, opts ...gorm.Option) (*DataBase, error) {
+	cfgs := make([]gorm.Option, 0, len(opts)+1)
+	cfgs = append(cfgs, &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+		NamingStrategy: schema.NamingStrategy{
+			SingularTable: true,
+		},
+	})
+
+	cfgs = append(cfgs, opts...)
+	db, err := gorm.Open(dialector, cfgs...)
 	if err != nil {
 		return nil, err
 	}
@@ -78,8 +88,10 @@ func Open(cfg *Config, opts ...gorm.Option) (*DataBase, error) {
 
 	goquDB, err := NewGoqu(cfg.Dialect, conn)
 	if err != nil {
+		conn.Close()
 		return nil, err
 	}
+
 	return &DataBase{
 		DB:   db,
 		cfg:  cfg,

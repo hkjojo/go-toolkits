@@ -8,12 +8,6 @@ import (
 	_ "github.com/doug-martin/goqu/v9/dialect/mysql"
 	_ "github.com/doug-martin/goqu/v9/dialect/postgres"
 	_ "github.com/doug-martin/goqu/v9/dialect/sqlite3"
-	"gorm.io/driver/clickhouse"
-	"gorm.io/driver/mysql"
-	"gorm.io/driver/postgres"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-	"gorm.io/gorm/schema"
 )
 
 var (
@@ -28,39 +22,6 @@ const (
 	ClickHouse Dialect = "clickhouse"
 	Postgres   Dialect = "postgres"
 )
-
-func NewGorm(dialect Dialect, url string, opts ...gorm.Option) (*gorm.DB, error) {
-	var (
-		dialector gorm.Dialector
-	)
-
-	switch dialect {
-	case MySQL:
-		dialector = mysql.Open(url)
-	case SQLite3:
-		dialector = sqlite.Open(url)
-	case ClickHouse:
-		dialector = clickhouse.Open(url)
-	case Postgres:
-		dialector = postgres.New(postgres.Config{
-			DSN:                  url,
-			PreferSimpleProtocol: true, // disables implicit prepared statement usage
-		})
-	default:
-		return nil, ErrUnsupportDriver
-	}
-
-	cfgs := make([]gorm.Option, 0, len(opts)+1)
-	cfgs = append(cfgs, &gorm.Config{
-		DisableForeignKeyConstraintWhenMigrating: true,
-		NamingStrategy: schema.NamingStrategy{
-			SingularTable: true,
-		},
-	})
-
-	cfgs = append(cfgs, opts...)
-	return gorm.Open(dialector, cfgs...)
-}
 
 func NewGoqu(dialect Dialect, conn *sql.DB) (*goqu.Database, error) {
 	switch dialect {
