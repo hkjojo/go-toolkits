@@ -13,10 +13,10 @@ import (
 
 // KafkaConfig ..
 type KafkaConfig struct {
-	CoreConfig
-	Hosts     []string
-	Topic     string
-	MergeData bool
+	CoreConfig `json:",inline"`
+	Hosts      []string `json:"hosts"`
+	Topic      string   `json:"topic"`
+	MergeData  bool     `json:"is_merge_data"`
 }
 
 // KafkaCore ..

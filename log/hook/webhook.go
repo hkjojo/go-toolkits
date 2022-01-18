@@ -20,12 +20,12 @@ const (
 
 // WebHookConfig ..
 type WebHookConfig struct {
-	CoreConfig
-	Host        string
-	Message     string
-	KVMessage   string
-	Method      string
-	ContentType string
+	CoreConfig  `json:",inline"`
+	Host        string `json:"host"`
+	Message     string `json:"message"`
+	KVMessage   string `json:"kv_message"`
+	Method      string `json:"method"`
+	ContentType string `json:"content_type"`
 }
 
 // WebHookCore ..

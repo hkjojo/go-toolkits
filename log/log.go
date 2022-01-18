@@ -17,23 +17,22 @@ import (
 
 // Config ...
 type Config struct {
-	Path   string
-	Level  string
-	Fields map[string]string
-
-	MaxSize       int
-	MaxBackups    int
-	MaxAge        int
-	DisableStdout bool
-	Compress      bool
-	Format        string // json/console/text
-	ForbitTime    bool
-	ForbitLevel   bool
-	Caller        bool
-	Prefix        string
-	Kafka         *hook.KafkaConfig
-	WebHook       []*hook.WebHookConfig
-	RotateDay     int
+	Path          string                `json:"path"`
+	Level         string                `json:"level"`
+	Fields        map[string]string     `json:"fields"`
+	MaxSize       int                   `json:"max_size"`
+	MaxBackups    int                   `json:"max_backups"`
+	MaxAge        int                   `json:"max_age"`
+	DisableStdout bool                  `json:"disable_stdout"`
+	Compress      bool                  `json:"compress"`
+	Format        string                `json:"format"` // json/console/text
+	ForbitTime    bool                  `json:"forbit_time"`
+	ForbitLevel   bool                  `json:"forbit_level"`
+	Caller        bool                  `json:"caller"`
+	Prefix        string                `json:"prefix"`
+	Kafka         *hook.KafkaConfig     `json:"kafka"`
+	WebHook       []*hook.WebHookConfig `json:"webhook"`
+	RotateDay     int                   `json:"rotate_day"`
 }
 
 // SugaredLogger ..
@@ -142,11 +141,14 @@ func New(config *Config) (*Logger, error) {
 				rotatelogs.WithMaxAge(time.Hour*24*time.Duration(config.MaxAge)),
 				rotatelogs.WithRotationTime(time.Hour*24*time.Duration(config.RotateDay)),
 			)
+			if err != nil {
+				return nil, err
+			}
 			hooks = append(hooks, zapcore.AddSync(rotatehook))
 		}
 	}
 
-	if config.DisableStdout == false {
+	if !config.DisableStdout {
 		hooks = append(hooks, os.Stdout)
 	}
 

@@ -16,11 +16,11 @@ type Core interface {
 
 // CoreConfig default config
 type CoreConfig struct {
-	QueueLength uint32
-	Filter      []string
-	Fields      map[string]string
-	Level       string
-	Off         bool
+	QueueLength uint32            `json:"queue_length"`
+	Filter      []string          `json:"filter"`
+	Fields      map[string]string `json:"fields"`
+	Level       string            `json:"level"`
+	Off         bool              `json:"off"`
 }
 
 // BaseCore BaseCore
