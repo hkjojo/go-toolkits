@@ -1,6 +1,6 @@
-module github.com/hkjojo/go-toolkits/log
+module github.com/hkjojo/go-toolkits/log/v2
 
-go 1.14
+go 1.16
 
 require (
 	github.com/Shopify/sarama v1.26.1

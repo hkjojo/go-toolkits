@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/go-kratos/kratos/v2/log"
-	tklog "github.com/hkjojo/go-toolkits/log"
+	tklog "github.com/hkjojo/go-toolkits/log/v2"
 	"go.uber.org/zap"
 )
 

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hkjojo/go-toolkits/log/encoder"
-	"github.com/hkjojo/go-toolkits/log/hook"
+	"github.com/hkjojo/go-toolkits/log/v2/encoder"
+	"github.com/hkjojo/go-toolkits/log/v2/hook"
 
 	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
 	"go.uber.org/zap"
