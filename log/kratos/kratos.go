@@ -1,7 +1,6 @@
 package kratos
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/go-kratos/kratos/v2/log"
@@ -11,10 +10,6 @@ import (
 
 type logger struct {
 	*tklog.Logger
-
-	hasValuer bool
-	ctx       context.Context
-	suffix    []interface{}
 }
 
 func NewZapLog(cfg *tklog.Config) (log.Logger, error) {
@@ -28,28 +23,33 @@ func NewZapLog(cfg *tklog.Config) (log.Logger, error) {
 
 var _ log.Logger = (*logger)(nil)
 
-func (l *logger) Log(level log.Level, keyvals ...interface{}) error {
-	kvs := append(keyvals, l.suffix...)
-	if len(kvs) == 0 {
+// Log impl kratos log, but try to find a msg key
+func (l *logger) Log(level log.Level, kvs ...interface{}) error {
+	ll := len(kvs)
+	if ll == 0 {
 		l.Warn(fmt.Sprint("keyvals not found: ", kvs))
 		return nil
 	}
 
 	var (
-		msg string
+		msg msgkey
 		ok  bool
 	)
-	if (len(kvs) & 1) == 1 {
-		msg, ok = kvs[0].(string)
-		if !ok {
-			kvs = append(kvs, "msg not string or keyvals not paired")
-		} else {
-			kvs = kvs[1:]
-		}
-	}
 
-	if l.hasValuer {
-		bindValues(l.ctx, kvs)
+	if (ll & 1) == 1 {
+		// find msgkey from reverse sort
+		for i := ll - 1; i >= 0; i-- {
+			msg, ok = kvs[i].(msgkey)
+			if ok {
+				kvs = kvs[0 : ll-1]
+				break
+			}
+			fmt.Println("not msgkey", kvs[i])
+		}
+
+		if msg == "" {
+			kvs = append(kvs, "invalid keyvals")
+		}
 	}
 
 	var data []zap.Field
@@ -57,54 +57,22 @@ func (l *logger) Log(level log.Level, keyvals ...interface{}) error {
 		data = append(data, zap.Any(fmt.Sprint(kvs[i]), kvs[i+1]))
 	}
 
+	m := string(msg)
 	switch level {
 	case log.LevelDebug:
-		l.Debug(msg, data...)
+		l.Debug(m, data...)
 	case log.LevelInfo:
-		l.Info(msg, data...)
+		l.Info(m, data...)
 	case log.LevelWarn:
-		l.Warn(msg, data...)
+		l.Warn(m, data...)
 	case log.LevelError:
-		l.Error(msg, data...)
+		l.Error(m, data...)
 	case log.LevelFatal:
-		l.Fatal(msg, data...)
+		l.Fatal(m, data...)
 	}
 	return nil
 }
 
-// With with logger fields.
-func With(l log.Logger, kv ...interface{}) log.Logger {
-	if c, ok := l.(*logger); ok {
-		kvs := make([]interface{}, 0, len(c.suffix)+len(kv))
-		kvs = append(kvs, kv...)
-		kvs = append(kvs, c.suffix...)
-		return &logger{
-			Logger:    c.Logger,
-			suffix:    kvs,
-			hasValuer: containsValuer(kvs),
-			ctx:       c.ctx,
-		}
-	}
-	return log.With(l)
-}
-
 func (l *logger) Sync() error {
 	return l.Sync()
-}
-
-func bindValues(ctx context.Context, keyvals []interface{}) {
-	for i := 1; i < len(keyvals); i += 2 {
-		if v, ok := keyvals[i].(log.Valuer); ok {
-			keyvals[i] = v(ctx)
-		}
-	}
-}
-
-func containsValuer(keyvals []interface{}) bool {
-	for i := 1; i < len(keyvals); i += 2 {
-		if _, ok := keyvals[i].(log.Valuer); ok {
-			return true
-		}
-	}
-	return false
 }
