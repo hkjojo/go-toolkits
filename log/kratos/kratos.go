@@ -44,7 +44,6 @@ func (l *logger) Log(level log.Level, kvs ...interface{}) error {
 				kvs = kvs[0 : ll-1]
 				break
 			}
-			fmt.Println("not msgkey", kvs[i])
 		}
 
 		if msg == "" {

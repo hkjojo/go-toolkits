@@ -11,6 +11,7 @@ require (
 	github.com/lestrrat-go/file-rotatelogs v2.2.0+incompatible
 	github.com/lestrrat-go/strftime v0.0.0-20190725011945-5c849dd2c51d // indirect
 	github.com/tebeka/strftime v0.1.3 // indirect
+	go.opentelemetry.io/otel/trace v1.0.0
 	go.uber.org/zap v1.15.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	honnef.co/go/tools v0.0.1-2020.1.4 // indirect
