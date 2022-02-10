@@ -8,6 +8,10 @@ import (
 	goqu "github.com/doug-martin/goqu/v9"
 	"github.com/pkg/errors"
 
+	"gorm.io/driver/clickhouse"
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 )
@@ -30,6 +34,13 @@ func IsNotFound(err error) bool {
 	return errors.Is(err, gorm.ErrRecordNotFound)
 }
 
+// WithDialector ...
+func WithDialector(dialector gorm.Dialector) gorm.Option {
+	return &gorm.Config{
+		Dialector: dialector,
+	}
+}
+
 // Config ..
 type Config struct {
 	Dialect         Dialect
@@ -43,24 +54,45 @@ type Config struct {
 
 // Inject init db conns
 // for convenient useage
-func Inject(cfg *Config, dialector gorm.Dialector, opts ...gorm.Option) error {
+func Inject(cfg *Config, opts ...gorm.Option) error {
 	var err error
-	DefaultDB, err = Open(cfg, dialector, opts...)
+	DefaultDB, err = Open(cfg, opts...)
 	return err
 }
 
 // Open get opened db instance
-func Open(cfg *Config, dialector gorm.Dialector, opts ...gorm.Option) (*DataBase, error) {
-	cfgs := make([]gorm.Option, 0, len(opts)+1)
-	cfgs = append(cfgs, &gorm.Config{
+func Open(cfg *Config, opts ...gorm.Option) (*DataBase, error) {
+	opts = append(opts, &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
 		NamingStrategy: schema.NamingStrategy{
 			SingularTable: true,
 		},
 	})
 
-	cfgs = append(cfgs, opts...)
-	db, err := gorm.Open(dialector, cfgs...)
+	var dialector gorm.Dialector
+	for _, opt := range opts {
+		cfg, ok := opt.(*gorm.Config)
+		if ok && cfg.Dialector != nil {
+			dialector = cfg.Dialector
+		}
+	}
+
+	if dialector == nil {
+		switch cfg.Dialect {
+		case MySQL:
+			dialector = mysql.Open(cfg.URL)
+		case SQLite3:
+			dialector = sqlite.Open(cfg.URL)
+		case ClickHouse:
+			dialector = clickhouse.Open(cfg.URL)
+		case Postgres:
+			dialector = postgres.Open(cfg.URL)
+		default:
+			return nil, ErrUnsupportDriver
+		}
+	}
+
+	db, err := gorm.Open(dialector, opts...)
 	if err != nil {
 		return nil, err
 	}
