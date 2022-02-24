@@ -23,7 +23,7 @@ var (
 	DefaultWriteTimeout   = 5 * time.Second
 	LuaFileSuffix         = ".lua"
 
-	rdsPool *Pool
+	defaultPool *Pool
 )
 
 type Config struct {
@@ -41,26 +41,26 @@ type Script struct {
 type ReplyFunc func(interface{}, error) error
 
 func Close() {
-	rdsPool.Close()
+	defaultPool.Close()
 }
 
 func Default() *Pool {
-	return rdsPool
+	return defaultPool
 }
 
 func Init(conf *Config, loadScript func(string, string)) error {
 	switch {
 	case len(conf.Sentinels) != 0:
-		rdsPool = NewSentinel(conf.Sentinels, conf.ReadOnly)
+		defaultPool = NewSentinel(conf.Sentinels, conf.ReadOnly)
 	case len(conf.MasterAddr) != 0:
-		rdsPool = New(conf.MasterAddr)
+		defaultPool = New(conf.MasterAddr)
 	default:
 		return errors.New("redis address empty")
 	}
-	if err := rdsPool.Get().Err(); err != nil {
+	if err := defaultPool.Conn().Err(); err != nil {
 		return err
 	}
-	return rdsPool.loadScript(conf.Script, loadScript)
+	return defaultPool.loadScript(conf.Script, loadScript)
 }
 
 // New ...
@@ -169,351 +169,111 @@ func NewSentinel(url []string, readOnly bool) *Pool {
 
 // SendScript ...
 func SendScript(script string, f ReplyFunc, args ...interface{}) error {
-	s := rdsPool.scripts[script]
-	if s == nil {
-		return errors.New("not found script")
-	}
-	var conn = rdsPool.Get()
-	defer conn.Close()
-	replay, err := s.Do(conn, args...)
-	if f != nil {
-		return f(replay, err)
-	}
-	return err
+	return defaultPool.SendScript(script, f, args...)
 }
 
 // BulkScript ...
 func BulkScript(script string, args [][]interface{}) error {
-	s := rdsPool.scripts[script]
-	if s == nil {
-		return errors.New("not found script")
-	}
-	var conn = rdsPool.Get()
-	defer conn.Close()
-
-	for _, arg := range args {
-		s.SendHash(conn, arg...)
-	}
-	conn.Flush()
-	_, err := conn.Receive()
-	return err
+	return defaultPool.BulkScript(script, args)
 }
 
 // Set ...
 func Set(key, value string) error {
-	var (
-		conn = rdsPool.Get()
-		err  error
-	)
-
-	defer conn.Close()
-
-	_, err = conn.Do("SET", key, value)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return defaultPool.Set(key, value)
 }
 
 // GetSet ...
 func GetSet(key, value string) (string, error) {
-	var (
-		conn = rdsPool.Get()
-		err  error
-	)
-
-	defer conn.Close()
-
-	value, err = redis.String(conn.Do("GETSET", key, value))
-	if err != nil {
-		return "", err
-	}
-
-	return value, nil
+	return defaultPool.GetSet(key, value)
 
 }
 
 // SetNX ...
 func SetNX(key, value string) (int, error) {
-	var (
-		conn = rdsPool.Get()
-		err  error
-		ret  int
-	)
-
-	defer conn.Close()
-
-	ret, err = redis.Int(conn.Do("SETNX", key, value))
-	if err != nil {
-		return ret, err
-	}
-
-	return ret, nil
+	return defaultPool.SetNX(key, value)
 }
 
 // SetEX ...
 func SetEX(key, value string, seconds int) (int, error) {
-	var conn = rdsPool.Get()
-	defer conn.Close()
-
-	return redis.Int(conn.Do("SETEX", key, seconds, value))
+	return defaultPool.SetEX(key, value, seconds)
 }
 
 // HSet ...
 func HSet(key string, field, value string) error {
-	var (
-		conn = rdsPool.Get()
-		err  error
-	)
-
-	defer conn.Close()
-
-	_, err = conn.Do("HSET", key, field, value)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return defaultPool.HSet(key, field, value)
 }
 
 // HIncrBy ...
 func HIncrBy(key string, field string, value int) (int, error) {
-	var (
-		conn = rdsPool.Get()
-	)
-
-	defer conn.Close()
-
-	return redis.Int(conn.Do("HINCRBY", key, field, value))
+	return defaultPool.HIncrBy(key, field, value)
 }
 
 // HMSet ...
 func HMSet(key string, value interface{}) error {
-	var (
-		conn = rdsPool.Get()
-		err  error
-	)
-
-	defer conn.Close()
-
-	_, err = conn.Do("HMSET", redis.Args{}.Add(key).AddFlat(value)...)
-	return err
+	return defaultPool.HMSet(key, value)
 }
 
 // BulkHMSet ...
 func BulkHMSet(values map[string]interface{}) error {
-	var (
-		conn = rdsPool.Get()
-		err  error
-	)
-
-	defer conn.Close()
-
-	for key, value := range values {
-		conn.Send("HMSET", redis.Args{}.Add(key).AddFlat(value)...)
-	}
-	_, err = redis.Values(conn.Do("EXEC"))
-	return err
+	return defaultPool.BulkHMSet(values)
 }
 
 // SAdd ...
 func SAdd(key string, member string) error {
-	var (
-		conn = rdsPool.Get()
-	)
-
-	defer conn.Close()
-	_, err := conn.Do("SADD", key, member)
-	return err
+	return defaultPool.SAdd(key, member)
 }
 
 // SRem ...
 func SRem(key string, member string) error {
-	var (
-		conn = rdsPool.Get()
-	)
-
-	defer conn.Close()
-	_, err := conn.Do("SREM", key, member)
-	return err
+	return defaultPool.SRem(key, member)
 }
 
 // Smembers ...
 func Smembers(key string) ([]string, error) {
-	var (
-		conn = rdsPool.Get()
-	)
-
-	defer conn.Close()
-	return redis.Strings(conn.Do("SMEMBERS", key))
+	return defaultPool.Smembers(key)
 }
 
 // HGet ...
 func HGet(key string, field string) (string, error) {
-	var (
-		conn = rdsPool.Get()
-	)
-
-	defer conn.Close()
-
-	return redis.String(conn.Do("HGET", key, field))
+	return defaultPool.HGet(key, field)
 }
 
 // HGetAll ...
 func HGetAll(key string, value interface{}) error {
-	var (
-		conn = rdsPool.Get()
-		err  error
-	)
-
-	defer conn.Close()
-
-	v, err := redis.Values(conn.Do("HGETALL", key))
-	if err != nil {
-		return err
-	}
-
-	if err := redis.ScanStruct(v, value); err != nil {
-		return err
-	}
-
-	return nil
+	return defaultPool.HGetAll(key, value)
 }
 
 // Get ...
 func Get(key string) (string, error) {
-
-	var (
-		conn  = rdsPool.Get()
-		err   error
-		value string
-	)
-
-	defer conn.Close()
-
-	value, err = redis.String(conn.Do("GET", key))
-	if err != nil && err == redis.ErrNil {
-		return "", nil
-	}
-
-	if err != nil {
-		return "", err
-	}
-
-	return value, nil
+	return defaultPool.Get(key)
 }
 
 // ScanHGets ...
 // Note: Use SCAN instead of KEYS, KEYS will block the server
 func ScanHGets(key string, f func([]interface{}) error) error {
-	var (
-		conn   = rdsPool.Get()
-		err    error
-		values []interface{}
-		keys   []string
-	)
-
-	defer conn.Close()
-
-	iter := 0
-	for {
-		arr, err := redis.Values(conn.Do("SCAN", iter, "MATCH", key))
-		if err != nil {
-			return err
-		}
-
-		iter, _ = redis.Int(arr[0], nil)
-		k, _ := redis.Strings(arr[1], nil)
-		keys = append(keys, k...)
-
-		if iter == 0 {
-			break
-		}
-	}
-	conn.Send("MULTI")
-	for _, key := range keys {
-		conn.Send("HGETALL", key)
-	}
-	values, err = redis.Values(conn.Do("EXEC"))
-	if err != nil && err == redis.ErrNil {
-		return nil
-	}
-
-	if err != nil {
-		return err
-	}
-
-	if f != nil {
-		return f(values)
-	}
-	return nil
+	return defaultPool.ScanHGets(key, f)
 
 }
 
 // ScanDels ...
 // Note: Use SCAN instead of KEYS, KEYS will block the server
 func ScanDels(key string) error {
-	var (
-		conn = rdsPool.Get()
-		err  error
-		keys []string
-	)
-
-	defer conn.Close()
-
-	iter := 0
-	for {
-		arr, err := redis.Values(conn.Do("SCAN", iter, "MATCH", key))
-		if err != nil {
-			return err
-		}
-
-		iter, _ = redis.Int(arr[0], nil)
-		k, _ := redis.Strings(arr[1], nil)
-		keys = append(keys, k...)
-
-		if iter == 0 {
-			break
-		}
-	}
-	conn.Send("MULTI")
-	for i := range keys {
-		conn.Send("DEL", keys[i])
-	}
-	_, err = redis.Values(conn.Do("EXEC"))
-	if err != nil && err == redis.ErrNil {
-		return nil
-	}
-	return err
+	return defaultPool.ScanDels(key)
 }
 
 // Dels ...
 func Dels(key ...interface{}) error {
-	var (
-		conn = rdsPool.Get()
-		err  error
-	)
-
-	defer conn.Close()
-
-	_, err = redis.Int(conn.Do("DEL", key...))
-	if err != nil {
-		return err
-	}
-	return nil
+	return defaultPool.Dels(key...)
 }
 
 // Do ...
 func Do(command string, args ...interface{}) (interface{}, error) {
-	conn := rdsPool.Get()
-	defer conn.Close()
-	return conn.Do(command, args...)
+	return defaultPool.Do(command, args...)
 }
 
 // UnderlyingPool ...
 func UnderlyingPool() *redis.Pool {
-	return rdsPool.pool
+	return defaultPool.pool
 }
 
 // ParseURL ...
