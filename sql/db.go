@@ -2,6 +2,7 @@ package sql
 
 import (
 	"context"
+	"gorm.io/gorm/schema"
 	"runtime"
 	"time"
 
@@ -13,7 +14,6 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
-	"gorm.io/gorm/schema"
 )
 
 // DefaultDB ...
@@ -53,7 +53,7 @@ type Config struct {
 }
 
 // Inject init db conns
-// for convenient useage
+// for convenient usage
 func Inject(cfg *Config, opts ...gorm.Option) error {
 	var err error
 	DefaultDB, err = Open(cfg, opts...)
@@ -62,18 +62,17 @@ func Inject(cfg *Config, opts ...gorm.Option) error {
 
 // Open get opened db instance
 func Open(cfg *Config, opts ...gorm.Option) (*DataBase, error) {
-	opts = append(opts, &gorm.Config{
-		DisableForeignKeyConstraintWhenMigrating: true,
-		NamingStrategy: schema.NamingStrategy{
-			SingularTable: true,
-		},
-	})
-
 	var dialector gorm.Dialector
 	for _, opt := range opts {
 		cfg, ok := opt.(*gorm.Config)
-		if ok && cfg.Dialector != nil {
-			dialector = cfg.Dialector
+		if ok {
+			cfg.DisableForeignKeyConstraintWhenMigrating = true
+			cfg.NamingStrategy = schema.NamingStrategy{
+				SingularTable: true,
+			}
+			if cfg.Dialector != nil {
+				dialector = cfg.Dialector
+			}
 		}
 	}
 
