@@ -65,12 +65,19 @@ func (h *Helper) WithDDOtelTrace(ctx context.Context) *Helper {
 
 	return &Helper{
 		logger: h.logger,
-		kvs: []interface{}{
+		kvs: append(h.kvs,
 			"dd.span_id", convertTraceID(spanID),
 			"dd.trace_id", convertTraceID(traceID),
-		},
+		),
 	}
+}
 
+// With ...
+func (h *Helper) With(args ...interface{}) *Helper {
+	return &Helper{
+		logger: h.logger,
+		kvs:    append(h.kvs, args...),
+	}
 }
 
 func convertTraceID(id string) string {
