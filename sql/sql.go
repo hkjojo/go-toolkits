@@ -35,6 +35,7 @@ const (
 
 // ArgsFilter ...
 type ArgsFilter struct {
+	exps      []goqu.Expression
 	ex        goqu.Ex
 	filterMap Condition
 	exOr      goqu.ExOr
@@ -55,7 +56,6 @@ func (f *ArgsFilter) Update(field string,
 	if f.filterMap == nil {
 		return f
 	}
-
 	value, ok := f.filterMap[filterField]
 	if ok {
 		f.ex[field] = value
@@ -86,8 +86,20 @@ func (f *ArgsFilter) Where(field string, op QueryOp,
 		if opEx := f.execOp(op, value); opEx != nil {
 			f.ex[field] = opEx
 		}
-
 	}
+	return f
+}
+
+// With ...
+func (f *ArgsFilter) With(expFunc func(interface{}) exp.BooleanExpression, filterField string) *ArgsFilter {
+	if f.filterMap == nil {
+		return f
+	}
+	value, ok := f.filterMap[filterField]
+	if ok {
+		f.exps = append(f.exps, expFunc(value))
+	}
+
 	return f
 }
 
@@ -147,6 +159,11 @@ func (f *ArgsFilter) End() []goqu.Expression {
 	if len(f.ex) > 0 {
 		ex = append(ex, f.ex)
 	}
+
+	if len(f.exps) > 0 {
+		ex = append(ex, f.exps...)
+	}
+
 	if len(f.exOr) > 0 {
 		ex = append(ex, f.exOr)
 	}
