@@ -13,15 +13,21 @@ import (
 
 // Pool ...
 type Pool struct {
-	pool    *redis.Pool
-	scripts map[string]*redis.Script
+	pool           *redis.Pool
+	scripts        map[string]*redis.Script
+	scriptCallback func(string, string)
 }
 
-func (p *Pool) loadScript(script string, loadScript func(string, string)) error {
-	if script == "" {
-		return nil
-	}
+// Option ...
+type Option func(*Pool)
 
+func WithLoadScriptCallback(callback func(string, string)) Option {
+	return func(p *Pool) {
+		p.scriptCallback = callback
+	}
+}
+
+func (p *Pool) loadScript(script string) error {
 	return filepath.Walk(script,
 		func(path string, info os.FileInfo, err error) error {
 			if err != nil {
@@ -64,8 +70,8 @@ func (p *Pool) loadScript(script string, loadScript func(string, string)) error 
 					return err
 				}
 				p.scripts[fileprefix] = s
-				if loadScript != nil {
-					loadScript(fileprefix, s.Hash())
+				if p.scriptCallback != nil {
+					p.scriptCallback(fileprefix, s.Hash())
 				}
 				return nil
 			}

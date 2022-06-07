@@ -48,7 +48,7 @@ func Default() *Pool {
 	return defaultPool
 }
 
-func Init(conf *Config, loadScript func(string, string)) error {
+func Init(conf *Config, opts ...Option) error {
 	switch {
 	case len(conf.Sentinels) != 0:
 		defaultPool = NewSentinel(conf.Sentinels, conf.ReadOnly)
@@ -57,10 +57,20 @@ func Init(conf *Config, loadScript func(string, string)) error {
 	default:
 		return errors.New("redis address empty")
 	}
+
+	for _, opt := range opts {
+		opt(defaultPool)
+	}
+
 	if err := defaultPool.Conn().Err(); err != nil {
 		return err
 	}
-	return defaultPool.loadScript(conf.Script, loadScript)
+
+	if conf.Script == "" {
+		return nil
+	}
+
+	return defaultPool.loadScript(conf.Script)
 }
 
 // New ...
