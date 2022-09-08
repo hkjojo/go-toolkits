@@ -1,114 +1,102 @@
 package kafka
 
 import (
+	"context"
 	"fmt"
-	"log"
-	"time"
 
 	"github.com/Shopify/sarama"
 )
 
-// Producer ...
 type Producer struct {
-	ap     sarama.AsyncProducer
-	codec  Codec
-	closed bool
+	codec Codec
+
+	sp sarama.SyncProducer
+	ap sarama.AsyncProducer
 }
 
-// NewProducer ...
-func NewProducer(hosts []string, options ...Option) (*Producer, error) {
-	cfg := sarama.NewConfig()
-	cfg.Producer.RequiredAcks = sarama.WaitForAll
-	cfg.Producer.Partitioner = sarama.NewRandomPartitioner
-	cfg.Producer.Return.Successes = true
-	cfg.Producer.Timeout = time.Microsecond * 100
-	cfg.Version = sarama.V2_4_0_0
-	for _, o := range options {
-		o(cfg)
+func NewProducer(ctx context.Context, addrs []string, opts ...PubOption) (*Producer, error) {
+	pubOpts := &PubOpts{}
+	for _, opt := range opts {
+		_ = opt(pubOpts)
 	}
 
-	p, err := sarama.NewAsyncProducer(hosts, cfg)
+	config := sarama.NewConfig()
+	config.Producer.Return.Successes = true
+
+	pc, err := sarama.NewClient(addrs, config)
+	if err != nil {
+		return nil, err
+	}
+	ap, err := sarama.NewAsyncProducerFromClient(pc)
+	if err != nil {
+		return nil, err
+	}
+	sp, err := sarama.NewSyncProducerFromClient(pc)
 	if err != nil {
 		return nil, err
 	}
 
-	producer := &Producer{ap: p, codec: DefaultCodec}
-	go producer.run()
-	return producer, nil
-}
+	go func() {
+		for {
+			select {
+			case err := <-ap.Errors():
+				if pubOpts.asyncErrorCB != nil {
+					pubOpts.asyncErrorCB(err)
+				}
 
-// Run ...
-func (p *Producer) run() {
-	success := p.ap.Successes()
-	errors := p.ap.Errors()
-	defer fmt.Println("producer loop stop")
-
-	for {
-		select {
-		case _, ok := <-success:
-			if !ok {
+			case <-ctx.Done():
+				_ = sp.Close()
+				_ = ap.Close()
+				_ = pc.Close()
 				return
 			}
-		case err, ok := <-errors:
-			if !ok {
-				return
-			}
-
-			log.Printf("produce message fail, error: %s\n", err.Error())
 		}
-	}
+	}()
+
+	return &Producer{codec: codec{}, ap: ap, sp: sp}, nil
 }
 
-// SetCodec ...
-func (p *Producer) SetCodec(codec Codec) {
-	p.codec = codec
-}
-
-// Publish ...
-func (p *Producer) Publish(topic string, data interface{}) error {
-	if p.closed {
-		return ErrAlreadyClosed
-	}
-
-	encodeData, err := p.codec.Marshal(data)
+func (p *Producer) Publish(topic string, msg interface{}) (err error) {
+	data, err := p.codec.Encode(msg)
 	if err != nil {
-		return err
+		return fmt.Errorf("encode msg failed: %w", err)
 	}
 
-	msg := &sarama.ProducerMessage{}
-	msg.Topic = topic
-	msg.Value = sarama.ByteEncoder(encodeData)
+	_, _, err = p.sp.SendMessage(&sarama.ProducerMessage{
+		Topic: topic,
+		Value: sarama.ByteEncoder(data),
+	})
+	return
+}
 
-	p.ap.Input() <- msg
+func (p *Producer) PublishAsync(topic string, msg interface{}) error {
+	data, err := p.codec.Encode(msg)
+	if err != nil {
+		return fmt.Errorf("encode msg failed: %w", err)
+	}
+
+	p.ap.Input() <- &sarama.ProducerMessage{
+		Topic: topic,
+		Value: sarama.ByteEncoder(data),
+	}
 	return nil
 }
 
-// PublishString ...
-func (p *Producer) PublishString(topic, message string) error {
-	if p.closed {
-		return ErrAlreadyClosed
-	}
+// GORGEOUS DIVIDING LINE -------------------------------------------------
 
-	msg := &sarama.ProducerMessage{}
-	msg.Topic = topic
-	msg.Value = sarama.StringEncoder(message)
-
-	p.ap.Input() <- msg
-	return nil
+type PubOpts struct {
+	asyncErrorCB PubErrorHandler
 }
 
-// PublishRawMsg ...
-func (p *Producer) PublishRawMsg(msg *sarama.ProducerMessage) error {
-	if p.closed {
-		return ErrAlreadyClosed
+type PubOption func(*PubOpts) error
+
+type PubErrorHandler func(error)
+
+// PublishErrHandler specify an error handler for the Producer.
+// NOTE: Do not perform time-consuming operations in PubErrorHandler.
+func PublishErrHandler(cb PubErrorHandler) PubOption {
+	return func(opts *PubOpts) error {
+		opts.asyncErrorCB = cb
+		return nil
 	}
-
-	p.ap.Input() <- msg
-	return nil
-}
-
-// Close ...
-func (p *Producer) Close() error {
-	p.closed = true
-	return p.ap.Close()
 }

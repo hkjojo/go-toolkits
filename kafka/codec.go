@@ -1,16 +1,40 @@
 package kafka
 
-import "encoding/json"
+import (
+	"bytes"
+	"encoding/gob"
 
-var DefaultCodec Codec = jsonCodec{}
+	"github.com/golang/protobuf/proto"
+)
 
 type Codec interface {
-	Marshal(interface{}) ([]byte, error)
+	Encode(any) ([]byte, error)
+	Decode([]byte, any) error
 }
 
-type jsonCodec struct{}
+type codec struct{}
 
-// Marshal ...
-func (c jsonCodec) Marshal(data interface{}) ([]byte, error) {
-	return json.Marshal(data)
+func (c codec) Encode(e any) (out []byte, err error) {
+	vv, ok := e.(proto.Message)
+	if ok {
+		return proto.Marshal(vv)
+	}
+
+	var buffer bytes.Buffer
+	encoder := gob.NewEncoder(&buffer)
+	if err = encoder.Encode(e); err != nil {
+		return
+	}
+	return buffer.Bytes(), nil
+}
+
+func (c codec) Decode(d []byte, e any) error {
+	vv, ok := e.(proto.Message)
+	if ok {
+		return proto.Unmarshal(d, vv)
+	}
+
+	data := bytes.NewBuffer(d)
+	decoder := gob.NewDecoder(data)
+	return decoder.Decode(e)
 }
