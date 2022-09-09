@@ -8,14 +8,15 @@ import (
 )
 
 type Producer struct {
-	codec Codec
+	codec  Codec
+	cancel context.CancelFunc
 
 	sp sarama.SyncProducer
 	ap sarama.AsyncProducer
 }
 
-func NewProducer(ctx context.Context, addrs []string, opts ...PubOption) (*Producer, error) {
-	pubOpts := &PubOpts{}
+func NewProducer(addrs []string, opts ...PubOption) (*Producer, error) {
+	pubOpts := GetDefaultPubOpts()
 	for _, opt := range opts {
 		_ = opt(pubOpts)
 	}
@@ -36,6 +37,7 @@ func NewProducer(ctx context.Context, addrs []string, opts ...PubOption) (*Produ
 		return nil, err
 	}
 
+	ctx, cancel := context.WithCancel(pubOpts.ctx)
 	go func() {
 		for {
 			select {
@@ -53,10 +55,10 @@ func NewProducer(ctx context.Context, addrs []string, opts ...PubOption) (*Produ
 		}
 	}()
 
-	return &Producer{codec: codec{}, ap: ap, sp: sp}, nil
+	return &Producer{ap: ap, sp: sp, codec: codec{}, cancel: cancel}, nil
 }
 
-func (p *Producer) Publish(topic string, msg interface{}) (err error) {
+func (p *Producer) Publish(topic string, msg any) (err error) {
 	data, err := p.codec.Encode(msg)
 	if err != nil {
 		return fmt.Errorf("encode msg failed: %w", err)
@@ -69,7 +71,7 @@ func (p *Producer) Publish(topic string, msg interface{}) (err error) {
 	return
 }
 
-func (p *Producer) PublishAsync(topic string, msg interface{}) error {
+func (p *Producer) PublishAsync(topic string, msg any) error {
 	data, err := p.codec.Encode(msg)
 	if err != nil {
 		return fmt.Errorf("encode msg failed: %w", err)
@@ -82,19 +84,35 @@ func (p *Producer) PublishAsync(topic string, msg interface{}) error {
 	return nil
 }
 
+func (p *Producer) Close() error {
+	p.cancel()
+	return nil
+}
+
 // GORGEOUS DIVIDING LINE -------------------------------------------------
 
 type PubOpts struct {
-	asyncErrorCB PubErrorHandler
+	ctx context.Context
+
+	asyncErrorCB func(error)
+}
+
+func GetDefaultPubOpts() *PubOpts {
+	return &PubOpts{ctx: context.Background()}
 }
 
 type PubOption func(*PubOpts) error
 
-type PubErrorHandler func(error)
+func WithPubContext(ctx context.Context) PubOption {
+	return func(opts *PubOpts) error {
+		opts.ctx = ctx
+		return nil
+	}
+}
 
 // PublishErrHandler specify an error handler for the Producer.
 // NOTE: Do not perform time-consuming operations in PubErrorHandler.
-func PublishErrHandler(cb PubErrorHandler) PubOption {
+func PublishErrHandler(cb func(error)) PubOption {
 	return func(opts *PubOpts) error {
 		opts.asyncErrorCB = cb
 		return nil

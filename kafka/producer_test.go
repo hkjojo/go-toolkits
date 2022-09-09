@@ -1,7 +1,6 @@
 package kafka
 
 import (
-	"context"
 	"log"
 	"testing"
 	"time"
@@ -9,8 +8,7 @@ import (
 
 func TestProducer(t *testing.T) {
 	addrs := []string{"localhost:9092"}
-	ctx, cancel := context.WithCancel(context.Background())
-	producer, err := NewProducer(ctx, addrs,
+	producer, err := NewProducer(addrs,
 		PublishErrHandler(func(err error) {
 			log.Printf("error: %v", err)
 		}),
@@ -19,14 +17,27 @@ func TestProducer(t *testing.T) {
 		log.Fatalf("new producer error: %v", err)
 	}
 
-	err = producer.PublishAsync("hale-topic", &Person{
-		Name: "aaa",
-		Age:  100,
-	})
-	if err != nil {
-		log.Fatalf("publish failed: %v", err)
-	}
+	t.Run("", func(t *testing.T) {
+		err = producer.PublishAsync("hale-topic", &Person{
+			Name: "aaa",
+			Age:  100,
+		})
+		if err != nil {
+			log.Fatalf("async publish failed: %v", err)
+		}
 
-	time.Sleep(time.Second)
-	cancel()
+		time.Sleep(time.Second)
+		_ = producer.Close()
+	})
+
+	t.Run("", func(t *testing.T) {
+		err = producer.Publish("hale-topic", &Person{
+			Name: "aaa",
+			Age:  100,
+		})
+		if err != nil {
+			log.Fatalf("publish failed: %v", err)
+		}
+	})
+
 }

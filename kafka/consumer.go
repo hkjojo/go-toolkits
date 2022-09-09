@@ -11,32 +11,123 @@ import (
 	"github.com/Shopify/sarama"
 )
 
-type Consumer[T any] struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	addrs  []string
-	conf   *sarama.Config
+// Subscribe subscribes to the topics' messages.
+// The callback function is called once a message arrived,
+// and if its return is nil, the message will be marked as consumed automatically.
+func Subscribe[T any](addrs, topics []string, cb func(t *T) error, opts ...SubOption) (*Subscription, error) {
+	if len(topics) == 0 {
+		return nil, errors.New("empty topics")
+	}
 
-	cgs map[string]sarama.ConsumerGroup
-}
+	subOpts := GetDefaultSubOpts()
+	for _, opt := range opts {
+		_ = opt(subOpts)
+	}
 
-func NewConsumer[T any](ctx context.Context, addrs []string) *Consumer[T] {
 	conf := sarama.NewConfig()
 	conf.Consumer.Return.Errors = true
 
-	ctxChild, ctxCancel := context.WithCancel(ctx)
-	return &Consumer[T]{
-		ctx:    ctxChild,
-		cancel: ctxCancel,
-		addrs:  addrs,
-		conf:   conf,
-		cgs:    map[string]sarama.ConsumerGroup{},
+	groupKey := subKey(topics)
+	consumerGrp, err := sarama.NewConsumerGroup(addrs, groupKey, conf)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithCancel(subOpts.ctx)
+	go func() {
+		for {
+			select {
+			case err := <-consumerGrp.Errors():
+				if subOpts.asyncErrorCB != nil {
+					subOpts.asyncErrorCB(err)
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	consumer := consumerGroupHandler[T]{handler: cb, subOpts: subOpts, codec: codec{}}
+	go func() {
+		defer func() {
+			_ = consumerGrp.Close()
+		}()
+
+		for {
+			// `Consume` should be called inside an infinite loop, when a
+			// server-side rebalance happens, the consumer session will need to be
+			// recreated to get the new claims.
+			if err := consumerGrp.Consume(ctx, topics, &consumer); err != nil {
+				if consumer.subOpts.asyncErrorCB != nil {
+					consumer.subOpts.asyncErrorCB(fmt.Errorf("consume error: %w", err))
+				}
+			}
+			// Check if context was cancelled, signaling that the consumer should stop.
+			if ctx.Err() != nil {
+				return
+			}
+		}
+	}()
+
+	return &Subscription{consumerGrp: consumerGrp, cancel: cancel}, nil
+}
+
+func subKey(topics []string) string {
+	sort.Strings(topics)
+	return fmt.Sprintf("%s", md5.Sum([]byte(strings.Join(topics, "-"))))
+}
+
+// GORGEOUS DIVIDING LINE -------------------------------------------------
+
+type SubOpts struct {
+	ctx context.Context
+	// consumePolicy  ConsumePolicy TODO
+	sessionStartCB func()
+	sessionEndCB   func()
+	asyncErrorCB   func(error)
+}
+
+func GetDefaultSubOpts() *SubOpts {
+	return &SubOpts{ctx: context.Background()}
+}
+
+type SubOption func(*SubOpts) error
+
+func WithSubContext(ctx context.Context) SubOption {
+	return func(opts *SubOpts) error {
+		opts.ctx = ctx
+		return nil
 	}
 }
 
+func SubscribeStartHandler(cb func()) SubOption {
+	return func(opts *SubOpts) error {
+		opts.sessionStartCB = cb
+		return nil
+	}
+}
+
+func SubscribeEndHandler(cb func()) SubOption {
+	return func(opts *SubOpts) error {
+		opts.sessionEndCB = cb
+		return nil
+	}
+}
+
+// SubscribeErrHandler specify an error handler for the Subscription.
+// NOTE: Do not perform time-consuming operations in SubErrorHandler.
+func SubscribeErrHandler(cb func(err error)) SubOption {
+	return func(opts *SubOpts) error {
+		opts.asyncErrorCB = cb
+		return nil
+	}
+}
+
+// GORGEOUS DIVIDING LINE -------------------------------------------------
+
 type Subscription struct {
-	cancel context.CancelFunc
-	cg     sarama.ConsumerGroup
+	cancel      context.CancelFunc
+	consumerGrp sarama.ConsumerGroup
 }
 
 // Unsubscribe TODO What do I need to do here ?
@@ -46,79 +137,11 @@ func (s *Subscription) Unsubscribe() error {
 }
 
 func (s *Subscription) Pause() {
-	s.cg.PauseAll()
+	s.consumerGrp.PauseAll()
 }
 
 func (s *Subscription) Resume() {
-	s.cg.ResumeAll()
-}
-
-// Subscribe subscribes to the topics' messages.
-// The handler function is called once a message arrived, and if the return is nil,
-// the message will be marked as consumed automatically.
-func (c *Consumer[T]) Subscribe(topics []string, handler func(t *T) error, opts ...SubOption) (*Subscription, error) {
-	if len(topics) == 0 {
-		return nil, errors.New("topics empty")
-	}
-
-	subOpts := &SubOpts{}
-	for _, opt := range opts {
-		_ = opt(subOpts)
-	}
-
-	groupKey := subKey(topics)
-	cg, err := sarama.NewConsumerGroup(c.addrs, groupKey, c.conf)
-	if err != nil {
-		return nil, err
-	}
-
-	ctxChild, ctxCancel := context.WithCancel(c.ctx)
-	go func() {
-		for {
-			select {
-			case err := <-cg.Errors():
-				if subOpts.asyncErrorCB != nil {
-					subOpts.asyncErrorCB(err)
-				}
-			case <-ctxChild.Done():
-				return
-			}
-		}
-	}()
-
-	consumer := consumerGroupHandler[T]{handler: handler, subOpts: subOpts, codec: codec{}}
-	go func() {
-		defer func() {
-			_ = cg.Close()
-		}()
-
-		for {
-			// `Consume` should be called inside an infinite loop, when a
-			// server-side rebalance happens, the consumer session will need to be
-			// recreated to get the new claims.
-			if err := cg.Consume(ctxChild, topics, &consumer); err != nil {
-				if consumer.subOpts.asyncErrorCB != nil {
-					consumer.subOpts.asyncErrorCB(fmt.Errorf("consume error: %w", err))
-				}
-			}
-			// Check if context was cancelled, signaling that the consumer should stop.
-			if ctxChild.Err() != nil {
-				return
-			}
-		}
-	}()
-
-	return &Subscription{cg: cg, cancel: ctxCancel}, nil
-}
-
-func (c *Consumer[T]) Close() error {
-	c.cancel()
-	return nil
-}
-
-func subKey(topics []string) string {
-	sort.Strings(topics)
-	return fmt.Sprintf("%s", md5.Sum([]byte(strings.Join(topics, "-"))))
+	s.consumerGrp.ResumeAll()
 }
 
 // GORGEOUS DIVIDING LINE -------------------------------------------------
@@ -130,17 +153,17 @@ type consumerGroupHandler[T any] struct {
 }
 
 // Setup is run at the beginning of a new session, before ConsumeClaim.
-func (c *consumerGroupHandler[T]) Setup(session sarama.ConsumerGroupSession) error {
+func (c *consumerGroupHandler[T]) Setup(_ sarama.ConsumerGroupSession) error {
 	if c.subOpts.sessionStartCB != nil {
-		c.subOpts.sessionStartCB(session)
+		c.subOpts.sessionStartCB()
 	}
 	return nil
 }
 
 // Cleanup is run at the end of a session, once all ConsumeClaim goroutines have exited.
-func (c *consumerGroupHandler[T]) Cleanup(session sarama.ConsumerGroupSession) error {
+func (c *consumerGroupHandler[T]) Cleanup(_ sarama.ConsumerGroupSession) error {
 	if c.subOpts.sessionEndCB != nil {
-		c.subOpts.sessionEndCB(session)
+		c.subOpts.sessionEndCB()
 	}
 	return nil
 }
@@ -171,69 +194,5 @@ func (c *consumerGroupHandler[T]) ConsumeClaim(session sarama.ConsumerGroupSessi
 		case <-session.Context().Done():
 			return nil
 		}
-	}
-}
-
-// GORGEOUS DIVIDING LINE -------------------------------------------------
-
-// TODO
-// type ConsumePolicy int
-//
-// const (
-// 	// ConsumeLastPolicy will start the consumer with the last sequence received.
-// 	ConsumeLastPolicy ConsumePolicy = iota
-//
-// 	// ConsumeNewPolicy will only deliver new messages that are sent after the consumer is created.
-// 	ConsumeNewPolicy
-// )
-
-type SubOpts struct {
-	// consumePolicy  ConsumePolicy TODO
-	sessionStartCB SubSessionHandler
-	sessionEndCB   SubSessionHandler
-	asyncErrorCB   SubErrorHandler
-}
-
-type SubOption func(*SubOpts) error
-
-// TODO
-// func SubConsumeLast() SubOption {
-// 	return func(o *SubOpts) error {
-// 		o.consumePolicy = ConsumeLastPolicy
-// 		return nil
-// 	}
-// }
-//
-// func SubConsumeNew() SubOption {
-// 	return func(o *SubOpts) error {
-// 		o.consumePolicy = ConsumeNewPolicy
-// 		return nil
-// 	}
-// }
-
-type SubSessionHandler func(sarama.ConsumerGroupSession)
-
-func SubscribeStartHandler(cb SubSessionHandler) SubOption {
-	return func(opts *SubOpts) error {
-		opts.sessionStartCB = cb
-		return nil
-	}
-}
-
-func SubscribeEndHandler(cb SubSessionHandler) SubOption {
-	return func(opts *SubOpts) error {
-		opts.sessionEndCB = cb
-		return nil
-	}
-}
-
-type SubErrorHandler func(error)
-
-// SubscribeErrHandler specify an error handler for the Subscription.
-// NOTE: Do not perform time-consuming operations in SubErrorHandler.
-func SubscribeErrHandler(cb SubErrorHandler) SubOption {
-	return func(opts *SubOpts) error {
-		opts.asyncErrorCB = cb
-		return nil
 	}
 }
