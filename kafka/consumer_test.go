@@ -1,6 +1,7 @@
 package kafka
 
 import (
+	"fmt"
 	"log"
 	"testing"
 	"time"
@@ -14,9 +15,10 @@ type Person struct {
 func TestConsumer(t *testing.T) {
 	addrs := []string{"localhost:9092"}
 	topics := []string{"hale-topic"}
-	sub, err := Subscribe[Person](addrs, topics,
+	sub, err := SubscribeQueue[Person](addrs, topics,
 		// messages handler
 		func(p *Person) error {
+			fmt.Println("person:", *p)
 			return nil
 		},
 		SubscribeErrHandler(func(err error) {
@@ -41,7 +43,7 @@ func TestConsumer(t *testing.T) {
 	})
 
 	t.Run("pause and resume", func(t *testing.T) {
-		time.Sleep(time.Minute)
+		time.Sleep(time.Second * 20)
 		sub.Pause()
 		log.Printf("sub paused...")
 

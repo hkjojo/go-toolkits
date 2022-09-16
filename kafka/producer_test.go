@@ -4,12 +4,14 @@ import (
 	"log"
 	"testing"
 	"time"
+
+	"github.com/Shopify/sarama"
 )
 
 func TestProducer(t *testing.T) {
 	addrs := []string{"localhost:9092"}
 	producer, err := NewProducer(addrs,
-		PublishErrHandler(func(err error) {
+		AsyncPublishErrHandler(func(msg *sarama.ProducerMessage, err error) {
 			log.Printf("error: %v", err)
 		}),
 	)
@@ -32,7 +34,7 @@ func TestProducer(t *testing.T) {
 
 	t.Run("", func(t *testing.T) {
 		err = producer.Publish("hale-topic", &Person{
-			Name: "aaa",
+			Name: "sdddddd",
 			Age:  100,
 		})
 		if err != nil {

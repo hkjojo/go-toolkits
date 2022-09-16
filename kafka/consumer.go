@@ -9,12 +9,35 @@ import (
 	"strings"
 
 	"github.com/Shopify/sarama"
+	"github.com/google/uuid"
 )
 
-// Subscribe subscribes to the topics' messages.
-// The callback function is called once a message arrived,
-// and if its return is nil, the message will be marked as consumed automatically.
-func Subscribe[T any](addrs, topics []string, cb func(t *T) error, opts ...SubOption) (*Subscription, error) {
+type Subscription interface {
+	Unsubscribe() error
+	Pause()
+	Resume()
+}
+
+// Subscribe
+// 1. If there are multiple subscriptions, all of them will receive the messages.
+// 2. The callback function is called once a message arrived,
+//    and if its return is nil, the message will be marked as consumed automatically.
+func Subscribe[T any](addrs, topics []string, cb func(t *T) error, opts ...SubOption) (Subscription, error) {
+	groupID := uuid.NewString()
+	return subscribe(addrs, topics, groupID, cb, opts...)
+}
+
+// SubscribeQueue
+// 1. If there are multiple subscriptions, only one of them will receive the message.
+// 2. The callback function is called once a message arrived,
+//    and if its return is nil, the message will be marked as consumed automatically.
+func SubscribeQueue[T any](addrs, topics []string, cb func(t *T) error, opts ...SubOption) (Subscription, error) {
+	sort.Strings(topics)
+	groupID := fmt.Sprintf("%s", md5.Sum([]byte(strings.Join(topics, "-"))))
+	return subscribe(addrs, topics, groupID, cb, opts...)
+}
+
+func subscribe[T any](addrs, topics []string, groupID string, cb func(t *T) error, opts ...SubOption) (Subscription, error) {
 	if len(topics) == 0 {
 		return nil, errors.New("empty topics")
 	}
@@ -23,12 +46,12 @@ func Subscribe[T any](addrs, topics []string, cb func(t *T) error, opts ...SubOp
 	for _, opt := range opts {
 		_ = opt(subOpts)
 	}
+	if subOpts.conf == nil {
+		subOpts.conf = sarama.NewConfig()
+	}
+	subOpts.conf.Consumer.Return.Errors = true
 
-	conf := sarama.NewConfig()
-	conf.Consumer.Return.Errors = true
-
-	groupKey := subKey(topics)
-	consumerGrp, err := sarama.NewConsumerGroup(addrs, groupKey, conf)
+	consumerGrp, err := sarama.NewConsumerGroup(addrs, groupID, subOpts.conf)
 	if err != nil {
 		return nil, err
 	}
@@ -69,19 +92,15 @@ func Subscribe[T any](addrs, topics []string, cb func(t *T) error, opts ...SubOp
 		}
 	}()
 
-	return &Subscription{consumerGrp: consumerGrp, cancel: cancel}, nil
-}
-
-func subKey(topics []string) string {
-	sort.Strings(topics)
-	return fmt.Sprintf("%s", md5.Sum([]byte(strings.Join(topics, "-"))))
+	return &subscription{consumerGrp: consumerGrp, cancel: cancel}, nil
 }
 
 // GORGEOUS DIVIDING LINE -------------------------------------------------
 
 type SubOpts struct {
-	ctx context.Context
-	// consumePolicy  ConsumePolicy TODO
+	ctx  context.Context
+	conf *sarama.Config
+
 	sessionStartCB func()
 	sessionEndCB   func()
 	asyncErrorCB   func(error)
@@ -100,6 +119,18 @@ func WithSubContext(ctx context.Context) SubOption {
 	}
 }
 
+// WithSubConfig is used to specify the sarama.Config.
+// It's best to use the function sarama.NewConfig() to create a new Config,
+// which has some default value, then specifies your customized items.
+// NOTE: You can't specify the value of conf.Consumer.Return.Errors which is always true.
+func WithSubConfig(conf *sarama.Config) PubOption {
+	return func(opts *PubOpts) error {
+		sarama.NewConfig()
+		opts.conf = conf
+		return nil
+	}
+}
+
 func SubscribeStartHandler(cb func()) SubOption {
 	return func(opts *SubOpts) error {
 		opts.sessionStartCB = cb
@@ -114,8 +145,8 @@ func SubscribeEndHandler(cb func()) SubOption {
 	}
 }
 
-// SubscribeErrHandler specify an error handler for the Subscription.
-// NOTE: Do not perform time-consuming operations in SubErrorHandler.
+// SubscribeErrHandler specifies an error callback function for the subscription.
+// NOTE: Does not perform time-consuming operations in SubErrorHandler.
 func SubscribeErrHandler(cb func(err error)) SubOption {
 	return func(opts *SubOpts) error {
 		opts.asyncErrorCB = cb
@@ -125,22 +156,21 @@ func SubscribeErrHandler(cb func(err error)) SubOption {
 
 // GORGEOUS DIVIDING LINE -------------------------------------------------
 
-type Subscription struct {
+type subscription struct {
 	cancel      context.CancelFunc
 	consumerGrp sarama.ConsumerGroup
 }
 
-// Unsubscribe TODO What do I need to do here ?
-func (s *Subscription) Unsubscribe() error {
+func (s *subscription) Unsubscribe() error {
 	s.cancel()
 	return nil
 }
 
-func (s *Subscription) Pause() {
+func (s *subscription) Pause() {
 	s.consumerGrp.PauseAll()
 }
 
-func (s *Subscription) Resume() {
+func (s *subscription) Resume() {
 	s.consumerGrp.ResumeAll()
 }
 
