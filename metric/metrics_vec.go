@@ -38,16 +38,19 @@ var (
 			Help:      "server requests duration(ms).",
 			Buckets:   []float64{0.005, 0.01, 0.05, 0.1, 1, 5},
 		}, []string{"kind", "operation"})
+)
 
-	ConnectionsGauge = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "connections_total",
-			Help: "The total number of connections in memory like (fix/grpc stream/ws/tcp)",
-		}, []string{"kind"})
+func NewConnectionsGauge(labelNames ...string) *prometheus.GaugeVec {
+	return prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "connections_total",
+		Help: "The total number of connections in memory like (fix/grpc stream/ws/tcp)",
+	}, append([]string{"kind"}, labelNames...))
+}
 
-	QuoteCounter = prometheus.NewCounterVec(
+func NewQuoteCounter(labelNames ...string) *prometheus.CounterVec {
+	return prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "quote_count",
 			Help: "The total number of symbol quote",
-		}, []string{"symbol"})
-)
+		}, append([]string{"symbol"}, labelNames...))
+}
