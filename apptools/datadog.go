@@ -5,7 +5,7 @@ import (
 )
 
 // NewDatadog can use configuration or environment variables(DD_AGENT_HOST,DD_ENV)
-func NewDatadog(endpoint string) (func(), error) {
+func NewDatadog() (func(), error) {
 	opts := []profiler.Option{
 		profiler.WithEnv(Env),
 		profiler.WithService(Name),
@@ -18,10 +18,12 @@ func NewDatadog(endpoint string) (func(), error) {
 			profiler.GoroutineProfile,
 		),
 	}
-	if endpoint != "" {
-		opts = append(opts, profiler.WithAgentAddr(endpoint))
+
+	if DDAgentHost == "" {
+		return func() {}, nil
 	}
 
+	opts = append(opts, profiler.WithAgentAddr(DDAgentHost))
 	return func() {
 		profiler.Stop()
 	}, profiler.Start(opts...)

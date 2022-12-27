@@ -25,6 +25,8 @@ var (
 	ClusterNodeName string
 	// pod name from k8s cluster
 	ClusterPodName string
+	// Datadog agent host
+	DDAgentHost string
 
 	ID, _ = os.Hostname()
 
@@ -78,6 +80,11 @@ func NewDefaultApp() *cli.App {
 			Aliases:     []string{"cpn"},
 			EnvVars:     []string{"CLUSTER_POD_NAME"},
 			Destination: &ClusterPodName,
+		},
+		&cli.StringFlag{
+			Name:        "dd_agent_host",
+			EnvVars:     []string{"DD_AGENT_HOST"},
+			Destination: &DDAgentHost,
 		},
 	}
 
