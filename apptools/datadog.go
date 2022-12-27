@@ -7,6 +7,7 @@ import (
 // NewDatadog can use configuration or environment variables(DD_AGENT_HOST,DD_ENV)
 func NewDatadog(endpoint string) (func(), error) {
 	opts := []profiler.Option{
+		profiler.WithEnv(Env),
 		profiler.WithService(Name),
 		profiler.WithVersion(Version),
 		profiler.WithProfileTypes(
