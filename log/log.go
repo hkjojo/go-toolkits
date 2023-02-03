@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jinzhu/copier"
+
 	"github.com/hkjojo/go-toolkits/log/v2/encoder"
 	"github.com/hkjojo/go-toolkits/log/v2/hook"
 
@@ -33,6 +35,15 @@ type Config struct {
 	Kafka         *hook.KafkaConfig     `json:"kafka"`
 	WebHook       []*hook.WebHookConfig `json:"webhook"`
 	RotateDay     int                   `json:"rotate_day"`
+}
+
+func (c *Config) Metric() *Config {
+	var metricCfg Config
+	if c != nil {
+		_ = copier.Copy(&metricCfg, c)
+	}
+	metricCfg.Path = "log/metric.log"
+	return &metricCfg
 }
 
 // SugaredLogger ..

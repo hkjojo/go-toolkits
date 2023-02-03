@@ -14,7 +14,7 @@ import (
 type (
 	NewSourceFunc             func() config.Source
 	NewOtelTracerProviderFunc func() (*trace.TracerProvider, func(), error)
-	NewLogFunc                func() (logger log.Logger, metricLogger log.Logger, _ error)
+	NewLogFunc                func() (log.Logger, error)
 	NewAppFunc                func(*App) (func(), error)
 )
 
@@ -28,18 +28,13 @@ type Builder struct {
 }
 
 type App struct {
-	logger  log.Logger
-	mLogger log.Logger // metric logger
-	tp      *trace.TracerProvider
-	source  config.Config
+	logger log.Logger
+	tp     *trace.TracerProvider
+	source config.Config
 }
 
 func (a *App) Logger() log.Logger {
 	return a.logger
-}
-
-func (a *App) MetricLogger() log.Logger {
-	return a.mLogger
 }
 
 func (a *App) Source() config.Config {
@@ -124,13 +119,12 @@ func (b *Builder) Build() (*App, func(), error) {
 
 	// init logger
 	if b.logFactory != nil {
-		logger, metricLogger, err := b.logFactory()
+		logger, err := b.logFactory()
 		if err != nil {
 			return nil, nil, err
 		}
 
 		app.logger = WithMetaKeys(logger)
-		app.mLogger = WithMetaKeys(metricLogger)
 	}
 
 	var cleanups []func()
