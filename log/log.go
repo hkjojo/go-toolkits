@@ -43,6 +43,7 @@ func (c *Config) Metric() *Config {
 		_ = copier.Copy(&metricCfg, c)
 	}
 	metricCfg.Path = "log/metric.log"
+	metricCfg.DisableStdout = true
 	return &metricCfg
 }
 
