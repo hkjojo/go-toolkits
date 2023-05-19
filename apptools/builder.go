@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-kratos/kratos/v2/config"
 	"github.com/go-kratos/kratos/v2/log"
+	"github.com/google/gops/agent"
 	"github.com/urfave/cli/v2"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
@@ -25,6 +26,8 @@ type Builder struct {
 	logFactory    NewLogFunc
 	sourceFactory NewSourceFunc
 	funcs         []NewAppFunc
+
+	enableGops bool
 }
 
 type App struct {
@@ -91,6 +94,11 @@ func (b *Builder) AddFunc(f NewAppFunc) *Builder {
 	return b
 }
 
+func (b *Builder) WithGops() *Builder {
+	b.enableGops = true
+	return b
+}
+
 // Build return cleanup function and error
 func (b *Builder) Build() (*App, func(), error) {
 	app := &App{}
@@ -148,6 +156,12 @@ func (b *Builder) Build() (*App, func(), error) {
 			return nil, nil, err
 		}
 		cleanups = append(cleanups, cleanup)
+	}
+
+	if b.enableGops {
+		if err = agent.Listen(agent.Options{}); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	return app, func() {
