@@ -26,6 +26,10 @@ func (g *gauge) With(lvs ...string) Gauge {
 	}
 }
 
+func (g *gauge) Delete(lvs ...string) bool {
+	return g.gv.DeleteLabelValues(lvs...)
+}
+
 func (g *gauge) Set(value float64) {
 	g.gv.WithLabelValues(g.lvs...).Set(value)
 }

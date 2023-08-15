@@ -18,6 +18,7 @@ type Counter interface {
 // Gauge is metrics gauge.
 type Gauge interface {
 	With(lvs ...string) Gauge
+	Delete(lvs ...string) bool
 	Set(value float64)
 	Add(delta float64)
 	Sub(delta float64)

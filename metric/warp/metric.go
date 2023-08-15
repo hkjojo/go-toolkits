@@ -121,6 +121,17 @@ func MT5GatewayStateSet(value float64, lvs **C.char, lvsLen C.int) {
 	gauge.Set(value)
 }
 
+//export MT5GatewayStateDelete
+func MT5GatewayStateDelete(lvs **C.char, lvsLen C.int) {
+	if mt5GatewayState == nil {
+		return
+	}
+
+	if lvsLen > 0 {
+		mt5GatewayState.Delete(parse2Strings(lvs, lvsLen)...)
+	}
+}
+
 //export AddCounter
 func AddCounter(nameSpace *C.char, subsystem *C.char, name *C.char, help *C.char,
 	labelNames **C.char, labelNamesLen C.int) {

@@ -67,3 +67,7 @@ func TestAny(t *testing.T) {
 		})
 	}
 }
+
+func TestRound(t *testing.T) {
+	t.Log(Round(1.10268+0.0001, 5))
+}
