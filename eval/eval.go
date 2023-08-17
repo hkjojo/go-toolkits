@@ -19,7 +19,9 @@ func GenMatcherWithFuncs(expr string, test interface{}, funcs map[string]govalua
 ) (expression *govaluate.EvaluableExpression, err error) {
 	functions := map[string]govaluate.ExpressionFunction{
 		"match":    matchFunc,
+		"matchIE":  matchIEFunc,
 		"any":      anyFunc,
+		"anyIE":    anyIEFunc,
 		"range":    rangeFunc,
 		"coloreq":  colorEqFunc,
 		"in":       inFunc,
@@ -65,6 +67,21 @@ func matchFunc(args ...interface{}) (interface{}, error) {
 	return utils.Match(value, pattern), nil
 }
 
+func matchIEFunc(args ...interface{}) (interface{}, error) {
+	if len(args) != 2 {
+		return false, ErrParameter
+	}
+	value, ok := args[0].(string)
+	if !ok {
+		return false, ErrParameter
+	}
+	pattern, ok := args[1].(string)
+	if !ok {
+		return false, ErrParameter
+	}
+	return utils.MatchIE(value, pattern), nil
+}
+
 func anyFunc(args ...interface{}) (interface{}, error) {
 	if len(args) != 2 {
 		return false, ErrParameter
@@ -78,6 +95,21 @@ func anyFunc(args ...interface{}) (interface{}, error) {
 		return false, ErrParameter
 	}
 	return utils.Any(value, pattern), nil
+}
+
+func anyIEFunc(args ...interface{}) (interface{}, error) {
+	if len(args) != 2 {
+		return false, ErrParameter
+	}
+	value, ok := args[0].(string)
+	if !ok {
+		return false, ErrParameter
+	}
+	pattern, ok := args[1].(string)
+	if !ok {
+		return false, ErrParameter
+	}
+	return utils.AnyIE(value, pattern), nil
 }
 
 func rangeFunc(args ...interface{}) (interface{}, error) {

@@ -5,3 +5,5 @@ github.com/fatih/structs v1.1.0/go.mod h1:9NiDSp5zOcgEDl+j00MP/WkGVPOlPRLejGD8Ga
 github.com/hkjojo/go-toolkits/utils v0.0.4 h1:DXN2kTb0R54nAl6LMQS3AlVtaDyauSHBafgZsfZ1UeI=
 github.com/hkjojo/go-toolkits/utils v0.0.4/go.mod h1:FsnRj5vqCd7q2Vcw3HjJfU91cgtW2O2kRRWslHnnS8k=
 github.com/hkjojo/go-toolkits/utils v0.0.7/go.mod h1:FsnRj5vqCd7q2Vcw3HjJfU91cgtW2O2kRRWslHnnS8k=
+github.com/hkjojo/go-toolkits/utils v0.0.8 h1:vJbq12xwdkFWzVVln5c8d4tNiXj4sjyddsFh1cJwfKw=
+github.com/hkjojo/go-toolkits/utils v0.0.8/go.mod h1:FsnRj5vqCd7q2Vcw3HjJfU91cgtW2O2kRRWslHnnS8k=
