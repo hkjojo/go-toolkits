@@ -41,12 +41,20 @@ func ColorEq(color uint, value string) bool {
 	value = strings.Replace(value, " ", "", -1)
 	value = strings.ToUpper(value)
 
-	rgb := nameRgbMap[value]
-	if rgb == "" {
-		rgb = value
-	}
+	for _, exp := range strings.Split(value, ",") {
+		if len(exp) == 0 {
+			continue
+		}
+		rgb := nameRgbMap[value]
+		if rgb == "" {
+			rgb = value
+		}
 
-	return rgb == toRGB(color)
+		if rgb == toRGB(color) {
+			return true
+		}
+	}
+	return false
 }
 
 func toRGB(color uint) string {

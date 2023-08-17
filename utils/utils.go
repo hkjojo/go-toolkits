@@ -73,6 +73,11 @@ func Match(value, pattern string) bool {
 	return true
 }
 
+// MatchIE match ignore case, pattern is &&
+func MatchIE(value, pattern string) bool {
+	return Match(strings.ToLower(value), strings.ToLower(pattern))
+}
+
 // Any pattern is ||
 func Any(value, pattern string) bool {
 	if pattern == "" {
@@ -116,6 +121,11 @@ func Any(value, pattern string) bool {
 		}
 	}
 	return false
+}
+
+// AnyIE match ignore case, pattern is ||
+func AnyIE(value, pattern string) bool {
+	return Match(strings.ToLower(value), strings.ToLower(pattern))
 }
 
 func LineCounter(r io.Reader) (int, error) {
