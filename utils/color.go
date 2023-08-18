@@ -45,9 +45,9 @@ func ColorEq(color uint, value string) bool {
 		if len(exp) == 0 {
 			continue
 		}
-		rgb := nameRgbMap[value]
+		rgb := nameRgbMap[exp]
 		if rgb == "" {
-			rgb = value
+			rgb = exp
 		}
 
 		if rgb == toRGB(color) {
