@@ -125,7 +125,7 @@ func Any(value, pattern string) bool {
 
 // AnyIE match ignore case, pattern is ||
 func AnyIE(value, pattern string) bool {
-	return Match(strings.ToLower(value), strings.ToLower(pattern))
+	return Any(strings.ToLower(value), strings.ToLower(pattern))
 }
 
 func LineCounter(r io.Reader) (int, error) {
