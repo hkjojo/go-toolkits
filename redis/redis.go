@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/url"
 	"strconv"
@@ -31,6 +32,7 @@ type Config struct {
 	Script     string
 	Sentinels  []string
 	ReadOnly   bool
+	Debug      bool
 }
 
 type Script struct {
@@ -51,9 +53,9 @@ func Default() *Pool {
 func Init(conf *Config, opts ...Option) error {
 	switch {
 	case len(conf.Sentinels) != 0:
-		defaultPool = NewSentinel(conf.Sentinels, conf.ReadOnly)
+		defaultPool = NewSentinel(conf)
 	case len(conf.MasterAddr) != 0:
-		defaultPool = New(conf.MasterAddr)
+		defaultPool = New(conf)
 	default:
 		return errors.New("redis address empty")
 	}
@@ -74,7 +76,8 @@ func Init(conf *Config, opts ...Option) error {
 }
 
 // New ...
-func New(url string) *Pool {
+func New(conf *Config) *Pool {
+	url := conf.MasterAddr
 	if url == "" {
 		url = "redis://127.0.0.1:6379"
 	} else {
@@ -89,14 +92,17 @@ func New(url string) *Pool {
 			IdleTimeout: DefaultIdleTimeout,
 			Wait:        true,
 			Dial: func() (redis.Conn, error) {
-				c, err := redis.DialURL(url,
+				conn, err := redis.DialURL(url,
 					redis.DialConnectTimeout(DefaultConnectTimeout),
 					redis.DialReadTimeout(DefaultReadTimeout),
 					redis.DialWriteTimeout(DefaultWriteTimeout))
 				if err != nil {
 					return nil, err
 				}
-				return c, nil
+				if conf.Debug {
+					return redis.NewLoggingConn(conn, log.Default(), ""), nil
+				}
+				return conn, nil
 			},
 		},
 		scripts: make(map[string]*redis.Script),
@@ -104,7 +110,8 @@ func New(url string) *Pool {
 }
 
 // NewSentinel ...
-func NewSentinel(url []string, readOnly bool) *Pool {
+func NewSentinel(conf *Config) *Pool {
+	url := conf.Sentinels
 	if len(url) == 0 {
 		url = []string{"redis://tasks.sentinel:26379"}
 	}
@@ -134,7 +141,7 @@ func NewSentinel(url []string, readOnly bool) *Pool {
 					err      error
 				)
 
-				if readOnly {
+				if conf.ReadOnly {
 					slaves, err = sentinelCli.SlaveAddrs()
 					if err != nil {
 						return nil, err
@@ -152,18 +159,27 @@ func NewSentinel(url []string, readOnly bool) *Pool {
 					}
 				}
 
-				return redis.DialURL("redis://"+redisURL,
+				conn, err := redis.DialURL("redis://"+redisURL,
 					redis.DialConnectTimeout(DefaultConnectTimeout),
 					redis.DialReadTimeout(DefaultReadTimeout),
 					redis.DialWriteTimeout(DefaultWriteTimeout),
 				)
+
+				if err != nil {
+					return nil, err
+				}
+
+				if conf.Debug {
+					return redis.NewLoggingConn(conn, log.Default(), ""), nil
+				}
+				return conn, nil
 			},
 			TestOnBorrow: func(c redis.Conn, t time.Time) error {
 				if time.Since(t) < time.Minute {
 					return nil
 				}
 
-				if readOnly {
+				if conf.ReadOnly {
 					return nil
 				}
 
@@ -378,11 +394,11 @@ func Float64Map(result interface{}, err error) (map[string]float64, error) {
 // not equal to nil, then Int returns 0, err. Otherwise, Float64 converts the
 // reply to an float64 as follows:
 //
-//  Reply type    Result
-//  float         reply, nil
-//  bulk string   parsed reply, nil
-//  nil           0, ErrNil
-//  other         0, error
+//	Reply type    Result
+//	float         reply, nil
+//	bulk string   parsed reply, nil
+//	nil           0, ErrNil
+//	other         0, error
 func Float64(reply interface{}, err error) (float64, error) {
 	if err != nil {
 		return 0, err
