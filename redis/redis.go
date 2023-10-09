@@ -16,23 +16,53 @@ import (
 )
 
 var (
-	DefaultMaxActive      = 50
-	DefaultMaxIdle        = 100
-	DefaultIdleTimeout    = 2 * time.Minute
-	DefaultConnectTimeout = 5 * time.Second
-	DefaultReadTimeout    = 5 * time.Second
-	DefaultWriteTimeout   = 5 * time.Second
-	LuaFileSuffix         = ".lua"
+	defaultConfig = &Config{
+		MaxActive:      50,
+		MaxIdle:        100,
+		IdleTimeout:    2 * 60,
+		ConnectTimeout: 5,
+		ReadTimeout:    5,
+		WriteTimeout:   5,
+	}
+
+	LuaFileSuffix = ".lua"
 
 	defaultPool *Pool
 )
 
 type Config struct {
-	MasterAddr string
-	Script     string
-	Sentinels  []string
-	ReadOnly   bool
-	Debug      bool
+	MasterAddr     string
+	Script         string
+	Sentinels      []string
+	ReadOnly       bool
+	Debug          bool
+	MaxActive      int
+	MaxIdle        int
+	IdleTimeout    int
+	ConnectTimeout int
+	ReadTimeout    int
+	WriteTimeout   int
+}
+
+func (c *Config) merge(conf *Config) {
+	if c.MaxActive <= 0 {
+		c.MaxActive = conf.MaxActive
+	}
+	if c.MaxIdle <= 0 {
+		c.MaxIdle = conf.MaxIdle
+	}
+	if c.IdleTimeout <= 0 {
+		c.IdleTimeout = conf.IdleTimeout
+	}
+	if c.ConnectTimeout <= 0 {
+		c.ConnectTimeout = conf.ConnectTimeout
+	}
+	if c.ReadTimeout <= 0 {
+		c.ReadTimeout = conf.ReadTimeout
+	}
+	if c.WriteTimeout <= 0 {
+		c.WriteTimeout = conf.WriteTimeout
+	}
 }
 
 type Script struct {
@@ -51,6 +81,7 @@ func Default() *Pool {
 }
 
 func Init(conf *Config, opts ...Option) error {
+	conf.merge(defaultConfig)
 	switch {
 	case len(conf.Sentinels) != 0:
 		defaultPool = NewSentinel(conf)
@@ -87,15 +118,16 @@ func New(conf *Config) *Pool {
 	}
 	return &Pool{
 		pool: &redis.Pool{
-			MaxIdle:     DefaultMaxIdle,
-			MaxActive:   DefaultMaxActive,
-			IdleTimeout: DefaultIdleTimeout,
+			MaxIdle:     conf.MaxIdle,
+			MaxActive:   conf.MaxActive,
+			IdleTimeout: time.Duration(conf.IdleTimeout) * time.Second,
 			Wait:        true,
 			Dial: func() (redis.Conn, error) {
 				conn, err := redis.DialURL(url,
-					redis.DialConnectTimeout(DefaultConnectTimeout),
-					redis.DialReadTimeout(DefaultReadTimeout),
-					redis.DialWriteTimeout(DefaultWriteTimeout))
+					redis.DialConnectTimeout(time.Duration(conf.ConnectTimeout)*time.Second),
+					redis.DialReadTimeout(time.Duration(conf.ReadTimeout)*time.Second),
+					redis.DialWriteTimeout(time.Duration(conf.WriteTimeout)*time.Second),
+				)
 				if err != nil {
 					return nil, err
 				}
@@ -130,9 +162,9 @@ func NewSentinel(conf *Config) *Pool {
 	}
 	return &Pool{
 		pool: &redis.Pool{
-			MaxIdle:     DefaultMaxIdle,
-			MaxActive:   DefaultMaxActive,
-			IdleTimeout: DefaultIdleTimeout,
+			MaxIdle:     conf.MaxIdle,
+			MaxActive:   conf.MaxActive,
+			IdleTimeout: time.Duration(conf.IdleTimeout) * time.Second,
 			Wait:        true,
 			Dial: func() (redis.Conn, error) {
 				var (
@@ -160,9 +192,9 @@ func NewSentinel(conf *Config) *Pool {
 				}
 
 				conn, err := redis.DialURL("redis://"+redisURL,
-					redis.DialConnectTimeout(DefaultConnectTimeout),
-					redis.DialReadTimeout(DefaultReadTimeout),
-					redis.DialWriteTimeout(DefaultWriteTimeout),
+					redis.DialConnectTimeout(time.Duration(conf.ConnectTimeout)*time.Second),
+					redis.DialReadTimeout(time.Duration(conf.ReadTimeout)*time.Second),
+					redis.DialWriteTimeout(time.Duration(conf.WriteTimeout)*time.Second),
 				)
 
 				if err != nil {
