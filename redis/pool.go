@@ -65,10 +65,12 @@ func (p *Pool) loadScript(script string) error {
 				}
 
 				s := redis.NewScript(int(c), string(f))
-				err = s.Load(p.pool.Get())
+				conn := p.Conn()
+				err = s.Load(conn)
 				if err != nil {
 					return err
 				}
+				conn.Close()
 				p.scripts[fileprefix] = s
 				if p.scriptCallback != nil {
 					p.scriptCallback(fileprefix, s.Hash())
