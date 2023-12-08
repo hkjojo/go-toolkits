@@ -99,11 +99,22 @@ func Init(conf *Config, opts ...Option) error {
 		return err
 	}
 
-	if conf.Script == "" {
-		return nil
+	if conf.Script != "" {
+		err := defaultPool.loadScript(conf.Script)
+		if err != nil {
+			return err
+		}
 	}
 
-	return defaultPool.loadScript(conf.Script)
+	if defaultPool.startPubSub {
+		client, err := NewPubSubClient(defaultPool, defaultPool.reSubCallBack)
+		if err != nil {
+			return err
+		}
+		defaultPool.pubSubClient = client
+	}
+
+	return nil
 }
 
 // New ...
@@ -447,4 +458,19 @@ func Float64(reply interface{}, err error) (float64, error) {
 		return 0, reply
 	}
 	return 0, fmt.Errorf("redigo: unexpected type for Int64, got type %T", reply)
+}
+
+func Subscribe(channel string, cb CallBack) error {
+	if !defaultPool.startPubSub {
+		return fmt.Errorf("pubsub not start")
+	}
+
+	return defaultPool.pubSubClient.subscribe(channel, cb)
+}
+
+func UnSubscribe(channel string) {
+	if defaultPool.startPubSub {
+		defaultPool.pubSubClient.unsubscribe(channel)
+	}
+
 }

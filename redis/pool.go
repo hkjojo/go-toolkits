@@ -16,6 +16,9 @@ type Pool struct {
 	pool           *redis.Pool
 	scripts        map[string]*redis.Script
 	scriptCallback func(string, string)
+	startPubSub    bool
+	pubSubClient   *PubSubClient
+	reSubCallBack  func()
 }
 
 // Option ...
@@ -24,6 +27,18 @@ type Option func(*Pool)
 func WithLoadScriptCallback(callback func(string, string)) Option {
 	return func(p *Pool) {
 		p.scriptCallback = callback
+	}
+}
+
+func WithPubSub() Option {
+	return func(p *Pool) {
+		p.startPubSub = true
+	}
+}
+
+func WithPubSubReSubCallBack(cb func()) Option {
+	return func(p *Pool) {
+		p.reSubCallBack = cb
 	}
 }
 
