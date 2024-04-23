@@ -9,12 +9,12 @@ import (
 	"github.com/urfave/cli/v2"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type (
 	NewSourceFunc             func() config.Source
-	NewOtelTracerProviderFunc func() (*trace.TracerProvider, func(), error)
+	NewOtelTracerProviderFunc func() (trace.TracerProvider, func(), error)
 	NewLogFunc                func() (log.Logger, error)
 	NewAppFunc                func(*App) (func(), error)
 )
@@ -32,7 +32,7 @@ type Builder struct {
 
 type App struct {
 	logger log.Logger
-	tp     *trace.TracerProvider
+	tp     trace.TracerProvider
 	source config.Config
 }
 
@@ -141,9 +141,6 @@ func (b *Builder) Build() (*App, func(), error) {
 		tp, cleanup, err := b.tpFactory()
 		if err != nil {
 			return nil, nil, err
-		}
-		if tp == nil {
-			return nil, nil, nil
 		}
 		app.tp = tp
 		otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
