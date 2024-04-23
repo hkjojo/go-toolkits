@@ -142,6 +142,9 @@ func (b *Builder) Build() (*App, func(), error) {
 		if err != nil {
 			return nil, nil, err
 		}
+		if tp == nil {
+			return nil, nil, nil
+		}
 		app.tp = tp
 		otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
 			propagation.TraceContext{}, propagation.Baggage{}))
