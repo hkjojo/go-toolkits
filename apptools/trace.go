@@ -11,13 +11,14 @@ import (
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 	ggrpc "google.golang.org/grpc"
 )
 
 // NewTracerProvider ...
 func NewTracerProvider(endpoint, authorization, organization string) (trace.TracerProvider, func(), error) {
 	if endpoint == "" {
-		return trace.NewNoopTracerProvider(), func() {}, nil
+		return noop.NewTracerProvider(), func() {}, nil
 	}
 
 	options := make([]otlptracegrpc.Option, 0, 4)
