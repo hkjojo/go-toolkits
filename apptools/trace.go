@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/sdk/resource"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
@@ -34,8 +33,7 @@ func NewTracerProvider(endpoint, authorization, organization string) (trace.Trac
 	))
 
 	ctx := context.Background()
-	traceClient := otlptracegrpc.NewClient(options...)
-	traceExp, err := otlptrace.New(ctx, traceClient)
+	exporter, err := otlptracegrpc.New(ctx, options...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -55,11 +53,10 @@ func NewTracerProvider(endpoint, authorization, organization string) (trace.Trac
 		return nil, nil, err
 	}
 
-	bsp := tracesdk.NewBatchSpanProcessor(traceExp)
 	tp := tracesdk.NewTracerProvider(
 		tracesdk.WithSampler(tracesdk.AlwaysSample()),
 		tracesdk.WithResource(res),
-		tracesdk.WithSpanProcessor(bsp),
+		tracesdk.WithBatcher(exporter),
 	)
 
 	return tp, func() {
