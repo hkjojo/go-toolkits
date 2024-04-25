@@ -5,12 +5,14 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/sdk/resource"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
+	ggrpc "google.golang.org/grpc"
 )
 
 // NewTracerProvider ...
@@ -19,19 +21,25 @@ func NewTracerProvider(endpoint, authorization, organization string) (trace.Trac
 		return noop.NewTracerProvider(), func() {}, nil
 	}
 
-	options := make([]otlptracehttp.Option, 0, 4)
-	options = append(options, otlptracehttp.WithEndpoint(endpoint))
-	options = append(options, otlptracehttp.WithInsecure())
-	options = append(options, otlptracehttp.WithHeaders(
-		map[string]string{
-			"Authorization": authorization,
-			"organization":  organization,
-			"stream-name":   "default",
-		},
-	))
+	options := make([]otlptracegrpc.Option, 0, 4)
+	options = append(options, otlptracegrpc.WithEndpoint(endpoint))
+	options = append(options, otlptracegrpc.WithDialOption(ggrpc.WithTimeout(10*time.Second)))
+
+	if authorization == "" {
+		options = append(options, otlptracegrpc.WithInsecure())
+	} else {
+		options = append(options, otlptracegrpc.WithHeaders(
+			map[string]string{
+				"Authorization": authorization,
+				"organization":  organization,
+				"stream-name":   "default",
+			},
+		))
+	}
 
 	ctx := context.Background()
-	exporter, err := otlptracehttp.New(ctx, options...)
+	traceClient := otlptracegrpc.NewClient(options...)
+	traceExp, err := otlptrace.New(ctx, traceClient)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -51,10 +59,11 @@ func NewTracerProvider(endpoint, authorization, organization string) (trace.Trac
 		return nil, nil, err
 	}
 
+	bsp := tracesdk.NewBatchSpanProcessor(traceExp)
 	tp := tracesdk.NewTracerProvider(
 		tracesdk.WithSampler(tracesdk.AlwaysSample()),
 		tracesdk.WithResource(res),
-		tracesdk.WithBatcher(exporter),
+		tracesdk.WithSpanProcessor(bsp),
 	)
 
 	return tp, func() {
