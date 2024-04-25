@@ -24,18 +24,14 @@ func NewTracerProvider(endpoint, authorization, organization string) (trace.Trac
 	options := make([]otlptracegrpc.Option, 0, 4)
 	options = append(options, otlptracegrpc.WithEndpoint(endpoint))
 	options = append(options, otlptracegrpc.WithDialOption(ggrpc.WithTimeout(10*time.Second)))
-
-	if authorization == "" {
-		options = append(options, otlptracegrpc.WithInsecure())
-	} else {
-		options = append(options, otlptracegrpc.WithHeaders(
-			map[string]string{
-				"Authorization": authorization,
-				"organization":  organization,
-				"stream-name":   "default",
-			},
-		))
-	}
+	options = append(options, otlptracegrpc.WithInsecure())
+	options = append(options, otlptracegrpc.WithHeaders(
+		map[string]string{
+			"Authorization": authorization,
+			"organization":  organization,
+			"stream-name":   "default",
+		},
+	))
 
 	ctx := context.Background()
 	traceClient := otlptracegrpc.NewClient(options...)
