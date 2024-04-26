@@ -33,6 +33,11 @@ func TestMatch(t *testing.T) {
 		{"3", args{"XAUUSD", "XAU*"}, true},
 		{"4", args{"XAUUSD", "!*XAU*"}, false},
 		{"5", args{"XAUUSD", "!XAUUSD*,!XAU*,*XAU*"}, false},
+		{"6", args{"demo", "!demo*,*"}, false},
+		{"7", args{"demo1", "*,!demo1"}, true},
+		{"8", args{"demo", "real,demo"}, true},
+		{"9", args{"real\\TEST-01", "demo\\*,real\\TEST*"}, true},
+		{"10", args{"real\\TEST-01", "!real\\*,real\\TEST*"}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

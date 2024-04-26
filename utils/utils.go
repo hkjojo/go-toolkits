@@ -28,7 +28,8 @@ func IntInSlice(v int, list []int) bool {
 	return false
 }
 
-// Match pattern is &&
+// Match pattern compatible MT wildcard pattern
+// see test cases for usage
 func Match(value, pattern string) bool {
 	if pattern == "" {
 		return false
@@ -63,21 +64,24 @@ func Match(value, pattern string) bool {
 			ok = true
 		}
 
-		if reverse {
-			ok = !ok
-		}
-		if !ok {
+		if reverse && ok {
 			return false
+			// ok = !ok
+		}
+
+		if ok {
+			return true
 		}
 	}
-	return true
+	return false
 }
 
-// MatchIE match ignore case, pattern is &&
+// MatchIE match ignore case
 func MatchIE(value, pattern string) bool {
 	return Match(strings.ToLower(value), strings.ToLower(pattern))
 }
 
+// TODO: remove next version, use Match instead
 // Any pattern is ||
 func Any(value, pattern string) bool {
 	if pattern == "" {
@@ -123,6 +127,7 @@ func Any(value, pattern string) bool {
 	return false
 }
 
+// TODO: remove next version, use Match instead
 // AnyIE match ignore case, pattern is ||
 func AnyIE(value, pattern string) bool {
 	return Any(strings.ToLower(value), strings.ToLower(pattern))

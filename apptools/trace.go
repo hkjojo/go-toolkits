@@ -10,20 +10,34 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	"go.opentelemetry.io/otel/trace"
 	ggrpc "google.golang.org/grpc"
 )
 
 // NewTracerProvider ...
-func NewTracerProvider(endpoint string) (*tracesdk.TracerProvider, func(), error) {
-	ctx := context.Background()
+func NewTracerProvider(endpoint, authorization, organization string) (trace.TracerProvider, func(), error) {
 	if endpoint == "" {
-		endpoint = "0.0.0.0:4317"
+		return trace.NewNoopTracerProvider(), func() {}, nil
 	}
 
-	traceClient := otlptracegrpc.NewClient(
-		otlptracegrpc.WithInsecure(),
-		otlptracegrpc.WithEndpoint(endpoint),
-		otlptracegrpc.WithDialOption(ggrpc.WithTimeout(10*time.Second)))
+	options := make([]otlptracegrpc.Option, 0, 4)
+	options = append(options, otlptracegrpc.WithEndpoint(endpoint))
+	options = append(options, otlptracegrpc.WithDialOption(ggrpc.WithTimeout(10*time.Second)))
+
+	if authorization == "" {
+		options = append(options, otlptracegrpc.WithInsecure())
+	} else {
+		options = append(options, otlptracegrpc.WithHeaders(
+			map[string]string{
+				"Authorization": authorization,
+				"organization":  organization,
+				"stream-name":   "default",
+			},
+		))
+	}
+
+	ctx := context.Background()
+	traceClient := otlptracegrpc.NewClient(options...)
 	traceExp, err := otlptrace.New(ctx, traceClient)
 	if err != nil {
 		return nil, nil, err
