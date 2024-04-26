@@ -48,11 +48,12 @@ func Start(
 	outErr **C.char,
 ) {
 	logger, err := tlogk.NewZapLog(&tlog.Config{
-		Path:      C.GoString(logPath),
-		Level:     "debug",
-		MaxAge:    30,
-		RotateDay: 1,
-		Format:    "json",
+		Path:          C.GoString(logPath),
+		Level:         "info",
+		MaxAge:        30,
+		RotateDay:     1,
+		Format:        "json",
+		DisableStdout: true,
 	})
 	if err != nil {
 		*outErr = C.CString(err.Error())
