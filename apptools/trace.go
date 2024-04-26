@@ -11,29 +11,29 @@ import (
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 	ggrpc "google.golang.org/grpc"
 )
 
 // NewTracerProvider ...
-func NewTracerProvider(endpoint, authorization, organization string) (trace.TracerProvider, func(), error) {
+func NewTracerProvider(endpoint, authorization, organization string, insecure bool) (trace.TracerProvider, func(), error) {
 	if endpoint == "" {
-		return trace.NewNoopTracerProvider(), func() {}, nil
+		return noop.NewTracerProvider(), func() {}, nil
 	}
 
 	options := make([]otlptracegrpc.Option, 0, 4)
 	options = append(options, otlptracegrpc.WithEndpoint(endpoint))
 	options = append(options, otlptracegrpc.WithDialOption(ggrpc.WithTimeout(10*time.Second)))
+	options = append(options, otlptracegrpc.WithHeaders(
+		map[string]string{
+			"Authorization": authorization,
+			"organization":  organization,
+			"stream-name":   "default",
+		},
+	))
 
-	if authorization == "" {
+	if insecure {
 		options = append(options, otlptracegrpc.WithInsecure())
-	} else {
-		options = append(options, otlptracegrpc.WithHeaders(
-			map[string]string{
-				"Authorization": authorization,
-				"organization":  organization,
-				"stream-name":   "default",
-			},
-		))
 	}
 
 	ctx := context.Background()
