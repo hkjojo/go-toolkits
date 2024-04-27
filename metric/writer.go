@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 
 	dto "github.com/prometheus/client_model/go"
@@ -92,11 +91,9 @@ func (w *httpWriter) Write(mf *dto.MetricFamily) {
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return
+	if resp.StatusCode != http.StatusOK {
+		err = fmt.Errorf("status code: %d", resp.StatusCode)
 	}
-	fmt.Println(string(body))
 }
 
 func (w *httpWriter) OnError(err error) {
