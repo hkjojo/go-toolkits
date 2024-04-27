@@ -1,6 +1,6 @@
 module github.com/hkjojo/go-toolkits/apptools
 
-go 1.22
+go 1.21
 
 require (
 	github.com/go-kratos/kratos/v2 v2.5.3

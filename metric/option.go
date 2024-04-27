@@ -36,3 +36,9 @@ func WithJSONLoggerWriter(logger JSONLogger) Option {
 		cfg.writer = newJSONLoggerWriter(logger)
 	}
 }
+
+func WithHTTPLoggerWriter(endpoint, auth, stream string) Option {
+	return func(cfg *config) {
+		cfg.writer = newHTTPWriter(endpoint, auth, stream)
+	}
+}
