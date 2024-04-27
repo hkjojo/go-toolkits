@@ -3,6 +3,8 @@ package metric
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 
 	dto "github.com/prometheus/client_model/go"
@@ -89,8 +91,15 @@ func (w *httpWriter) Write(mf *dto.MetricFamily) {
 		return
 	}
 	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return
+	}
+	fmt.Println(string(body))
 }
 
 func (w *httpWriter) OnError(err error) {
 	// todo
+	fmt.Println("metric_internal_error", "error", err)
 }
