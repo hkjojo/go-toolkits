@@ -23,6 +23,7 @@ type ErrorLogger interface {
 }
 
 type httpWriter struct {
+	init     bool
 	endpoint string
 	auth     string
 	stream   string
@@ -33,7 +34,13 @@ type httpWriter struct {
 }
 
 func newHTTPWriter(endpoint, auth, stream string, logger ErrorLogger) Writer {
+	if endpoint == "" {
+		logger.Errorw("metric_internal_error", "error", "endpoint empty")
+		return &httpWriter{}
+	}
+
 	return &httpWriter{
+		init:     true,
 		endpoint: endpoint,
 		stream:   stream,
 		header: map[string]string{
@@ -45,6 +52,10 @@ func newHTTPWriter(endpoint, auth, stream string, logger ErrorLogger) Writer {
 }
 
 func (w *httpWriter) Write(mf *dto.MetricFamily) {
+	if !w.init {
+		return
+	}
+
 	var (
 		err     error
 		pbBytes []byte
