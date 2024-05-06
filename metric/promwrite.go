@@ -18,11 +18,15 @@ const (
 	LabelName = "__name__"
 )
 
+var (
+	metricNameRE = regexp.MustCompile(`^[a-zA-Z_:][a-zA-Z0-9_:]*$`)
+)
+
 type ErrorLogger interface {
 	Errorw(string, ...interface{})
 }
 
-type httpWriter struct {
+type promRemoteWriter struct {
 	init     bool
 	endpoint string
 	auth     string
@@ -33,25 +37,25 @@ type httpWriter struct {
 	logger ErrorLogger
 }
 
-func newHTTPWriter(endpoint, auth, stream string, logger ErrorLogger) Writer {
+func newPromRemoteWriter(endpoint, auth, stream string, logger ErrorLogger) Writer {
 	if endpoint == "" {
 		logger.Errorw("metric_internal_error", "error", "endpoint empty")
-		return &httpWriter{}
+		return &promRemoteWriter{}
 	}
 
-	return &httpWriter{
+	return &promRemoteWriter{
 		init:     true,
 		endpoint: endpoint,
 		stream:   stream,
 		header: map[string]string{
 			"Authorization": auth,
 		},
-		client: &http.Client{Timeout: time.Second * 10},
+		client: &http.Client{Timeout: time.Second * 30},
 		logger: logger,
 	}
 }
 
-func (w *httpWriter) Write(mf *dto.MetricFamily) {
+func (w *promRemoteWriter) Write(mf *dto.MetricFamily) {
 	if !w.init {
 		return
 	}
@@ -102,26 +106,29 @@ func (w *httpWriter) Write(mf *dto.MetricFamily) {
 	}
 }
 
-func (w *httpWriter) OnError(err error) {
+func (w *promRemoteWriter) OnError(err error) {
 	w.logger.Errorw("metric_internal_error", "error", err)
 }
 
-var metricNameRE = regexp.MustCompile(`^[a-zA-Z_:][a-zA-Z0-9_:]*$`)
-
-func convertOne(mf *dto.MetricFamily) (prompb.TimeSeries, error) {
-	metrics := mf.GetMetric()
-
+func convertOne(mf *dto.MetricFamily) (prompb.TimeSeries, prompb.MetricMetadata, error) {
 	if !metricNameRE.MatchString(mf.GetName()) {
-		return prompb.TimeSeries{}, errors.New("invalid metrics name")
+		return prompb.TimeSeries{}, prompb.MetricMetadata{}, errors.New("invalid metrics name")
 	}
+	if mf.Type == nil {
+		return prompb.TimeSeries{}, prompb.MetricMetadata{}, errors.New("invalid metrics type")
+	}
+
+	var metrics = mf.GetMetric()
 	if metrics == nil {
-		return prompb.TimeSeries{}, errors.New("metrics empty")
+		return prompb.TimeSeries{}, prompb.MetricMetadata{}, errors.New("metrics empty")
 	}
 
 	var (
-		lbs     []prompb.Label
-		samples []prompb.Sample
+		lbs        []prompb.Label
+		samples    []prompb.Sample
+		histograms []prompb.Histogram
 	)
+	// reserved label name
 	lbs = append(lbs, prompb.Label{Name: LabelName, Value: mf.GetName()})
 
 	for _, metric := range metrics {
@@ -132,35 +139,97 @@ func convertOne(mf *dto.MetricFamily) (prompb.TimeSeries, error) {
 			lbs = append(lbs, prompb.Label{Name: lb.GetName(), Value: lb.GetValue()})
 		}
 
-		var value float64
-		g := metric.GetGauge()
-		if g != nil {
-			value = g.GetValue()
+		var ts = time.Now().UnixNano() / 1e6
+		if metric.GetTimestampMs() != 0 {
+			ts = metric.GetTimestampMs()
 		}
 
-		c := metric.GetCounter()
-		if c != nil {
-			value = c.GetValue()
-		}
+		switch mf.GetType() {
+		case dto.MetricType_COUNTER:
+			samples = append(samples, prompb.Sample{Value: metric.GetCounter().GetValue(), Timestamp: ts})
+		case dto.MetricType_GAUGE:
+			samples = append(samples, prompb.Sample{Value: metric.GetGauge().GetValue(), Timestamp: ts})
+		case dto.MetricType_SUMMARY:
+		case dto.MetricType_HISTOGRAM:
+			hist := metric.GetHistogram()
+			if hist == nil {
+				continue
+			}
+			pbHist := prompb.Histogram{
+				Sum:            hist.GetSampleSum(),
+				Schema:         hist.GetSchema(),
+				ZeroThreshold:  hist.GetZeroThreshold(),
+				NegativeSpans:  spansToSpansProto(hist.GetNegativeSpan()),
+				NegativeDeltas: hist.GetNegativeDelta(),
+				NegativeCounts: hist.GetNegativeCount(),
+				PositiveSpans:  spansToSpansProto(hist.GetPositiveSpan()),
+				PositiveDeltas: hist.GetPositiveDelta(),
+				PositiveCounts: hist.GetPositiveCount(),
+				ResetHint:      prompb.Histogram_YES,
+				Timestamp:      hist.GetCreatedTimestamp().GetSeconds() * 1e3,
+			}
 
-		samples = append(samples, prompb.Sample{
-			Value:     value,
-			Timestamp: time.Unix(time.Now().Unix(), 0).UnixNano() / 1e6,
-		})
+			if hist.SampleCount != nil {
+				pbHist.Count = &prompb.Histogram_CountInt{CountInt: hist.GetSampleCount()}
+			} else {
+				pbHist.Count = &prompb.Histogram_CountFloat{CountFloat: hist.GetSampleCountFloat()}
+			}
+
+			if hist.ZeroCount != nil {
+				pbHist.ZeroCount = &prompb.Histogram_ZeroCountInt{ZeroCountInt: hist.GetZeroCount()}
+			} else {
+				pbHist.ZeroCount = &prompb.Histogram_ZeroCountFloat{ZeroCountFloat: hist.GetZeroCountFloat()}
+			}
+
+			histograms = append(histograms, pbHist)
+		}
+	}
+
+	metadata := prompb.MetricMetadata{
+		Type:             toMetricType(mf.GetType()),
+		MetricFamilyName: mf.GetName(),
+		Help:             mf.GetHelp(),
+		Unit:             mf.GetUnit(),
 	}
 
 	return prompb.TimeSeries{
-		Labels:  lbs,
-		Samples: samples,
-	}, nil
+		Labels:     lbs,
+		Samples:    samples,
+		Histograms: histograms,
+	}, metadata, nil
 }
 
 func toPrometheusPbWriteRequest(mf *dto.MetricFamily) (*prompb.WriteRequest, error) {
-	ts, err := convertOne(mf)
+	ts, metadata, err := convertOne(mf)
 	if err != nil {
 		return nil, err
 	}
 	return &prompb.WriteRequest{
 		Timeseries: []prompb.TimeSeries{ts},
+		Metadata:   []prompb.MetricMetadata{metadata},
 	}, nil
+}
+
+func toMetricType(metricType dto.MetricType) prompb.MetricMetadata_MetricType {
+	switch metricType {
+	case dto.MetricType_COUNTER:
+		return prompb.MetricMetadata_COUNTER
+	case dto.MetricType_GAUGE:
+		return prompb.MetricMetadata_GAUGE
+	case dto.MetricType_SUMMARY:
+		return prompb.MetricMetadata_SUMMARY
+	case dto.MetricType_HISTOGRAM:
+		return prompb.MetricMetadata_HISTOGRAM
+	case dto.MetricType_GAUGE_HISTOGRAM:
+		return prompb.MetricMetadata_GAUGEHISTOGRAM
+	}
+	return prompb.MetricMetadata_UNKNOWN
+}
+
+func spansToSpansProto(s []*dto.BucketSpan) []*prompb.BucketSpan {
+	spans := make([]*prompb.BucketSpan, len(s))
+	for i := 0; i < len(s); i++ {
+		spans[i] = &prompb.BucketSpan{Offset: s[i].GetOffset(), Length: s[i].GetLength()}
+	}
+	return spans
 }

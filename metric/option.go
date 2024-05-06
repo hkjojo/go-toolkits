@@ -39,6 +39,6 @@ func WithJSONLoggerWriter(logger JSONLogger) Option {
 
 func WithHTTPLoggerWriter(endpoint, auth, stream string, logger ErrorLogger) Option {
 	return func(cfg *config) {
-		cfg.writer = newHTTPWriter(endpoint, auth, stream, logger)
+		cfg.writer = newPromRemoteWriter(endpoint, auth, stream, logger)
 	}
 }
