@@ -127,6 +127,7 @@ func NewTracerProvider(opts ...Option) (trace.TracerProvider, func(), error) {
 	case TraceClientHTTP:
 		var options []otlptracehttp.Option
 		options = append(options, otlptracehttp.WithEndpoint(defaultConfig.endpoint))
+		options = append(options, otlptracehttp.WithURLPath("/api/default/v1/traces"))
 		options = append(options, otlptracehttp.WithHeaders(header))
 		if defaultConfig.insecure {
 			options = append(options, otlptracehttp.WithInsecure())
