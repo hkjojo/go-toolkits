@@ -2,11 +2,14 @@ package apptools
 
 import (
 	"context"
+	"os"
+	"strconv"
 	"time"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/sdk/resource"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -15,29 +18,123 @@ import (
 	ggrpc "google.golang.org/grpc"
 )
 
+type ClientMode int32
+
+const (
+	TraceClientGRPC ClientMode = 0
+	TraceClientHTTP ClientMode = 1
+)
+
+var (
+	defaultConfig = &config{
+		endpoint:      os.Getenv("OTLP_ENDPOINT"),
+		authorization: os.Getenv("OTLP_AUTHORIZATION"),
+		organization:  os.Getenv("OTLP_ORGANIZATION"),
+		stream:        os.Getenv("OTLP_STREAM_NAME"),
+		insecure:      true,
+		clientMode:    TraceClientGRPC,
+	}
+)
+
+type Option func(*config)
+
+type config struct {
+	endpoint      string
+	authorization string
+	organization  string
+	stream        string
+	insecure      bool
+	clientMode    ClientMode
+}
+
+// WithEndpoint default use os env: OTLP_ENDPOINT
+func WithEndpoint(endpoint string) Option {
+	return func(c *config) {
+		c.endpoint = endpoint
+	}
+}
+
+// WithAuthorization default use os env: OTLP_AUTHORIZATION
+func WithAuthorization(authorization string) Option {
+	return func(c *config) {
+		c.authorization = authorization
+	}
+}
+
+// WithOrganization default use os env: OTLP_ORGANIZATION
+func WithOrganization(organization string) Option {
+	return func(c *config) {
+		c.organization = organization
+	}
+}
+
+// WithInsecure default use os env: OTLP_INSECURE
+func WithInsecure(insecure bool) Option {
+	return func(c *config) {
+		c.insecure = insecure
+	}
+}
+
+// WithStream default use os env: OTLP_STREAM_NAME
+func WithStream(streamName string) Option {
+	return func(c *config) {
+		c.stream = streamName
+	}
+}
+
+// WithClientMode default grpc
+func WithClientMode(mode ClientMode) Option {
+	return func(c *config) {
+		c.clientMode = mode
+	}
+}
+
 // NewTracerProvider ...
-func NewTracerProvider(endpoint, authorization, organization string, insecure bool) (trace.TracerProvider, func(), error) {
-	if endpoint == "" {
+func NewTracerProvider(opts ...Option) (trace.TracerProvider, func(), error) {
+	insecure, err := strconv.ParseBool(os.Getenv("OTLP_INSECURE"))
+	if err != nil {
+		insecure = true
+	}
+	defaultConfig.insecure = insecure
+
+	for _, option := range opts {
+		option(defaultConfig)
+	}
+
+	if defaultConfig.endpoint == "" {
 		return noop.NewTracerProvider(), func() {}, nil
 	}
 
-	options := make([]otlptracegrpc.Option, 0, 4)
-	options = append(options, otlptracegrpc.WithEndpoint(endpoint))
-	options = append(options, otlptracegrpc.WithDialOption(ggrpc.WithTimeout(10*time.Second)))
-	options = append(options, otlptracegrpc.WithHeaders(
-		map[string]string{
-			"Authorization": authorization,
-			"organization":  organization,
-			"stream-name":   "default",
-		},
-	))
+	var (
+		traceClient otlptrace.Client
+		header      = map[string]string{
+			"Authorization": defaultConfig.authorization,
+			"organization":  defaultConfig.organization,
+			"stream-name":   defaultConfig.stream,
+		}
+	)
 
-	if insecure {
-		options = append(options, otlptracegrpc.WithInsecure())
+	switch defaultConfig.clientMode {
+	case TraceClientGRPC:
+		var options []otlptracegrpc.Option
+		options = append(options, otlptracegrpc.WithEndpoint(defaultConfig.endpoint))
+		options = append(options, otlptracegrpc.WithDialOption(ggrpc.WithTimeout(10*time.Second)))
+		options = append(options, otlptracegrpc.WithHeaders(header))
+		if defaultConfig.insecure {
+			options = append(options, otlptracegrpc.WithInsecure())
+		}
+		traceClient = otlptracegrpc.NewClient(options...)
+	case TraceClientHTTP:
+		var options []otlptracehttp.Option
+		options = append(options, otlptracehttp.WithEndpoint(defaultConfig.endpoint))
+		options = append(options, otlptracehttp.WithHeaders(header))
+		if defaultConfig.insecure {
+			options = append(options, otlptracehttp.WithInsecure())
+		}
+		traceClient = otlptracehttp.NewClient(options...)
 	}
 
 	ctx := context.Background()
-	traceClient := otlptracegrpc.NewClient(options...)
 	traceExp, err := otlptrace.New(ctx, traceClient)
 	if err != nil {
 		return nil, nil, err
