@@ -32,7 +32,7 @@ var (
 		authorization: os.Getenv("OTLP_AUTHORIZATION"),
 		organization:  os.Getenv("OTLP_ORGANIZATION"),
 		stream:        os.Getenv("OTLP_STREAM_NAME"),
-		insecure:      true,
+		insecure:      false,
 		clientMode:    TraceClientGRPC,
 	}
 )
@@ -128,10 +128,10 @@ func NewTracerProvider(opts ...Option) (trace.TracerProvider, func(), error) {
 	case TraceClientHTTP:
 		var options []otlptracehttp.Option
 		options = append(options, otlptracehttp.WithEndpoint(defaultConfig.endpoint))
-		options = append(options, otlptracehttp.WithURLPath(fmt.Sprintf("/api/%s/traces", header["organization"])))
+		options = append(options, otlptracehttp.WithURLPath(fmt.Sprintf("/api/%s/traces", defaultConfig.organization)))
 		options = append(options, otlptracehttp.WithHeaders(header))
 		if defaultConfig.insecure {
-			// options = append(options, otlptracehttp.WithInsecure())
+			options = append(options, otlptracehttp.WithInsecure())
 		}
 		traceClient = otlptracehttp.NewClient(options...)
 	}
