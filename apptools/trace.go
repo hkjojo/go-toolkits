@@ -2,6 +2,7 @@ package apptools
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strconv"
 	"time"
@@ -93,7 +94,7 @@ func WithClientMode(mode ClientMode) Option {
 func NewTracerProvider(opts ...Option) (trace.TracerProvider, func(), error) {
 	insecure, err := strconv.ParseBool(os.Getenv("OTLP_INSECURE"))
 	if err != nil {
-		insecure = true
+		insecure = false
 	}
 	defaultConfig.insecure = insecure
 
@@ -127,7 +128,7 @@ func NewTracerProvider(opts ...Option) (trace.TracerProvider, func(), error) {
 	case TraceClientHTTP:
 		var options []otlptracehttp.Option
 		options = append(options, otlptracehttp.WithEndpoint(defaultConfig.endpoint))
-		options = append(options, otlptracehttp.WithURLPath("/api/default/v1/traces"))
+		options = append(options, otlptracehttp.WithURLPath(fmt.Sprintf("/api/%s/traces", header["organization"])))
 		options = append(options, otlptracehttp.WithHeaders(header))
 		if defaultConfig.insecure {
 			options = append(options, otlptracehttp.WithInsecure())
