@@ -131,7 +131,7 @@ func NewTracerProvider(opts ...Option) (trace.TracerProvider, func(), error) {
 		options = append(options, otlptracehttp.WithURLPath(fmt.Sprintf("/api/%s/traces", header["organization"])))
 		options = append(options, otlptracehttp.WithHeaders(header))
 		if defaultConfig.insecure {
-			options = append(options, otlptracehttp.WithInsecure())
+			// options = append(options, otlptracehttp.WithInsecure())
 		}
 		traceClient = otlptracehttp.NewClient(options...)
 	}
