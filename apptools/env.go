@@ -106,7 +106,7 @@ func NewDefaultApp() *cli.App {
 		&cli.StringFlag{
 			Name:        "otlp_organization",
 			EnvVars:     []string{"OTLP_ORGANIZATION"},
-			DefaultText: Env,
+			DefaultText: "default",
 			Destination: &OtlpOrganization,
 		},
 		&cli.StringFlag{
@@ -136,10 +136,6 @@ func NewDefaultApp() *cli.App {
 		serverTag := c.String("service_tag")
 		if serverTag != "" && serverTag != "demo" && serverTag != "live" && serverTag != "test" {
 			return errors.New("invalid tag value")
-		}
-
-		if c.String("otlp_organization") == "" {
-			Env = "default"
 		}
 		return nil
 	}
