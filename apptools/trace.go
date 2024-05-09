@@ -25,11 +25,11 @@ const (
 	TraceClientHTTP ClientMode = "http"
 )
 
-var defaultConfig *tradeConfig
+var defaultConfig *traceConfig
 
-type Option func(*tradeConfig)
+type Option func(*traceConfig)
 
-type tradeConfig struct {
+type traceConfig struct {
 	endpoint      string
 	authorization string
 	organization  string
@@ -40,48 +40,48 @@ type tradeConfig struct {
 
 // WithEndpoint default use os env: OTLP_ENDPOINT
 func WithEndpoint(endpoint string) Option {
-	return func(c *tradeConfig) {
+	return func(c *traceConfig) {
 		c.endpoint = endpoint
 	}
 }
 
 // WithAuthorization default use os env: OTLP_AUTHORIZATION
 func WithAuthorization(authorization string) Option {
-	return func(c *tradeConfig) {
+	return func(c *traceConfig) {
 		c.authorization = authorization
 	}
 }
 
 // WithOrganization default use os env: OTLP_ORGANIZATION
 func WithOrganization(organization string) Option {
-	return func(c *tradeConfig) {
+	return func(c *traceConfig) {
 		c.organization = organization
 	}
 }
 
 // WithInsecure default use os env: OTLP_INSECURE
 func WithInsecure(insecure bool) Option {
-	return func(c *tradeConfig) {
+	return func(c *traceConfig) {
 		c.insecure = insecure
 	}
 }
 
 // WithStream default use os env: OTLP_STREAM_NAME
 func WithStream(streamName string) Option {
-	return func(c *tradeConfig) {
+	return func(c *traceConfig) {
 		c.stream = streamName
 	}
 }
 
 // WithClientMode default grpc
 func WithClientMode(mode ClientMode) Option {
-	return func(c *tradeConfig) {
+	return func(c *traceConfig) {
 		c.clientMode = mode
 	}
 }
 
 func initDefaultConfig() {
-	defaultConfig = &tradeConfig{
+	defaultConfig = &traceConfig{
 		endpoint:      OtlpEndpoint,
 		authorization: OtlpAuthorization,
 		organization:  OtlpOrganization,

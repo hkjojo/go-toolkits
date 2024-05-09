@@ -28,12 +28,14 @@ var (
 	// Datadog agent host
 	DDAgentHost string
 
+	// trace
 	OtlpEndpoint      string
 	OtlpAuthorization string
 	OtlpOrganization  string
 	OtlpStreamName    string
 	OtlpClient        string
 	OtlpInsecure      bool
+	MetricEndpoint    string
 
 	ID, _ = os.Hostname()
 

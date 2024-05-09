@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"regexp"
 	"time"
 
@@ -129,7 +130,7 @@ func convertOne(mf *dto.MetricFamily) (prompb.TimeSeries, prompb.MetricMetadata,
 		histograms []prompb.Histogram
 	)
 	// reserved label name
-	lbs = append(lbs, prompb.Label{Name: LabelName, Value: mf.GetName()})
+	lbs = append(lbs, prompb.Label{Name: LabelName, Value: fmt.Sprintf("%s.%s", os.Getenv("SERVICE_NAME"), mf.GetName())})
 
 	for _, metric := range metrics {
 		for _, lb := range metric.GetLabel() {
