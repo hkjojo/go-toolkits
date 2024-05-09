@@ -28,6 +28,13 @@ var (
 	// Datadog agent host
 	DDAgentHost string
 
+	OtlpEndpoint      string
+	OtlpAuthorization string
+	OtlpOrganization  string
+	OtlpStreamName    string
+	OtlpClient        string
+	OtlpInsecure      bool
+
 	ID, _ = os.Hostname()
 
 	EmptyApp = &cli.App{}
@@ -86,6 +93,39 @@ func NewDefaultApp() *cli.App {
 			EnvVars:     []string{"DD_AGENT_HOST"},
 			Destination: &DDAgentHost,
 		},
+		&cli.StringFlag{
+			Name:        "otlp_endpoint",
+			EnvVars:     []string{"OTLP_ENDPOINT"},
+			Destination: &OtlpEndpoint,
+		},
+		&cli.StringFlag{
+			Name:        "otlp_authorization",
+			EnvVars:     []string{"OTLP_AUTHORIZATION"},
+			Destination: &OtlpAuthorization,
+		},
+		&cli.StringFlag{
+			Name:        "otlp_organization",
+			EnvVars:     []string{"OTLP_ORGANIZATION"},
+			DefaultText: Env,
+			Destination: &OtlpOrganization,
+		},
+		&cli.StringFlag{
+			Name:        "otlp_stream_name",
+			EnvVars:     []string{"OTLP_STREAM_NAME"},
+			DefaultText: "default",
+			Destination: &OtlpStreamName,
+		},
+		&cli.StringFlag{
+			Name:        "otlp_client",
+			EnvVars:     []string{"OTLP_CLIENT"},
+			DefaultText: "http",
+			Destination: &OtlpClient,
+		},
+		&cli.BoolFlag{
+			Name:        "otlp_insecure",
+			EnvVars:     []string{"OTLP_INSECURE"},
+			Destination: &OtlpInsecure,
+		},
 	}
 
 	mainApp.Action = func(c *cli.Context) error {
@@ -93,9 +133,13 @@ func NewDefaultApp() *cli.App {
 			Name = name
 		}
 
-		tag := c.String("service_tag")
-		if tag != "" && tag != "demo" && tag != "live" && tag != "test" {
+		serverTag := c.String("service_tag")
+		if serverTag != "" && serverTag != "demo" && serverTag != "live" && serverTag != "test" {
 			return errors.New("invalid tag value")
+		}
+
+		if c.String("otlp_organization") == "" {
+			Env = "default"
 		}
 		return nil
 	}

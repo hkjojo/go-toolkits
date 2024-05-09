@@ -3,8 +3,7 @@ package apptools
 import (
 	"context"
 	"fmt"
-	"os"
-	"strconv"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -19,23 +18,14 @@ import (
 	ggrpc "google.golang.org/grpc"
 )
 
-type ClientMode int32
+type ClientMode string
 
 const (
-	TraceClientGRPC ClientMode = 0
-	TraceClientHTTP ClientMode = 1
+	TraceClientGRPC ClientMode = "grpc"
+	TraceClientHTTP ClientMode = "http"
 )
 
-var (
-	defaultConfig = &tradeConfig{
-		endpoint:      os.Getenv("OTLP_ENDPOINT"),
-		authorization: os.Getenv("OTLP_AUTHORIZATION"),
-		organization:  os.Getenv("OTLP_ORGANIZATION"),
-		stream:        os.Getenv("OTLP_STREAM_NAME"),
-		insecure:      false,
-		clientMode:    TraceClientGRPC,
-	}
-)
+var defaultConfig *tradeConfig
 
 type Option func(*tradeConfig)
 
@@ -90,13 +80,20 @@ func WithClientMode(mode ClientMode) Option {
 	}
 }
 
+func initDefaultConfig() {
+	defaultConfig = &tradeConfig{
+		endpoint:      OtlpEndpoint,
+		authorization: OtlpAuthorization,
+		organization:  OtlpOrganization,
+		stream:        OtlpStreamName,
+		insecure:      OtlpInsecure,
+		clientMode:    ClientMode(strings.ToLower(OtlpClient)),
+	}
+}
+
 // NewTracerProvider ...
 func NewTracerProvider(opts ...Option) (trace.TracerProvider, func(), error) {
-	insecure, err := strconv.ParseBool(os.Getenv("OTLP_INSECURE"))
-	if err != nil {
-		insecure = false
-	}
-	defaultConfig.insecure = insecure
+	initDefaultConfig()
 
 	for _, option := range opts {
 		option(defaultConfig)
@@ -134,6 +131,8 @@ func NewTracerProvider(opts ...Option) (trace.TracerProvider, func(), error) {
 			options = append(options, otlptracehttp.WithInsecure())
 		}
 		traceClient = otlptracehttp.NewClient(options...)
+	default:
+		return noop.NewTracerProvider(), func() {}, nil
 	}
 
 	ctx := context.Background()
