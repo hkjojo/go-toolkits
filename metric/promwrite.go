@@ -16,7 +16,8 @@ import (
 )
 
 const (
-	LabelName = "__name__"
+	labelName  = "__name__"
+	serverName = "server_name"
 )
 
 var (
@@ -130,7 +131,8 @@ func convertOne(mf *dto.MetricFamily) (prompb.TimeSeries, prompb.MetricMetadata,
 		histograms []prompb.Histogram
 	)
 	// reserved label name
-	lbs = append(lbs, prompb.Label{Name: LabelName, Value: fmt.Sprintf("%s_%s", os.Getenv("SERVICE_NAME"), mf.GetName())})
+	lbs = append(lbs, prompb.Label{Name: labelName, Value: mf.GetName()})
+	lbs = append(lbs, prompb.Label{Name: serverName, Value: os.Getenv("SERVICE_NAME")})
 
 	for _, metric := range metrics {
 		for _, lb := range metric.GetLabel() {
