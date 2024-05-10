@@ -114,7 +114,7 @@ func (w *promRemoteWriter) initUrlAndHeader() {
 		"Authorization": w.authorization,
 	}
 
-	w.logger.Debugw("initUrlAndHeader", "writer", w)
+	w.logger.Debugw("initUrlAndHeader", "writer", fmt.Sprintf("%+v", w))
 }
 
 func newPromRemoteWriter(logger ErrorLogger, opts ...PromOption) Writer {
