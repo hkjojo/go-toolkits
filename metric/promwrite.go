@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
-	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -28,21 +28,18 @@ var (
 
 type ErrorLogger interface {
 	Errorw(string, ...interface{})
-	Debugw(string, ...interface{})
+	Warnw(string, ...interface{})
+	Infow(string, ...interface{})
 }
 
 type PromOption func(*promRemoteWriter)
 
 type promRemoteWriter struct {
-	init          bool
-	url           string
-	endpoint      string
-	organization  string
-	authorization string
-	insecure      bool
-	header        map[string]string
-	client        *http.Client
-	logger        ErrorLogger
+	init     bool
+	endpoint string
+	header   map[string]string
+	client   *http.Client
+	logger   ErrorLogger
 }
 
 // WithHTTPClient ...
@@ -59,78 +56,46 @@ func WithEndpoint(endpoint string) PromOption {
 	}
 }
 
-// WithAuthorization ...
-func WithAuthorization(authorization string) PromOption {
+// WithHeader ...
+func WithHeader(header map[string]string) PromOption {
 	return func(writer *promRemoteWriter) {
-		writer.authorization = authorization
+		writer.header = header
 	}
 }
 
-// WithOrganization default use os env: OTLP_ORGANIZATION
-func WithOrganization(organization string) PromOption {
-	return func(writer *promRemoteWriter) {
-		writer.organization = organization
-	}
-}
-
-// WithInsecure ...
-func WithInsecure(insecure bool) PromOption {
-	return func(writer *promRemoteWriter) {
-		writer.insecure = insecure
-	}
-}
-
-func initPromConfig(logger ErrorLogger) {
-	var (
-		err      error
-		insecure bool
-	)
-
-	insecureEnv, ok := os.LookupEnv("METRIC_INSECURE")
-	if ok {
-		insecure, err = strconv.ParseBool(insecureEnv)
-		if err != nil {
-			logger.Errorw("metric_internal_error", "error", err)
-		}
-	}
-
+func initPromWriter(logger ErrorLogger) {
 	defaultWriter = &promRemoteWriter{
-		endpoint:      os.Getenv("METRIC_ENDPOINT"),
-		organization:  os.Getenv("METRIC_ORGANIZATION"),
-		authorization: os.Getenv("METRIC_AUTHORIZATION"),
-		insecure:      insecure,
-		client:        &http.Client{Timeout: time.Second * 30},
-		logger:        logger,
-	}
-}
-
-func (w *promRemoteWriter) initUrlAndHeader() {
-	var scheme = "https"
-	if w.insecure {
-		scheme = "http"
-	}
-	w.url = fmt.Sprintf("%s://%s/api/%s/prometheus/api/v1/write", scheme, w.endpoint, w.organization)
-	w.header = map[string]string{
-		"Authorization": w.authorization,
+		endpoint: os.Getenv("METRIC_ENDPOINT"),
+		client:   &http.Client{Timeout: time.Second * 30},
+		logger:   logger,
 	}
 
-	w.logger.Debugw("initUrlAndHeader", "writer", fmt.Sprintf("%+v", w))
+	header, ok := os.LookupEnv("METRIC_HEADERS")
+	if ok {
+		hm := make(map[string]string)
+		for _, headers := range strings.Split(header, ",") {
+			kv := strings.SplitN(headers, "=", 2)
+			if len(kv) != 2 {
+				continue
+			}
+			hm[kv[0]] = kv[1]
+		}
+		defaultWriter.header = hm
+	}
 }
 
 func newPromRemoteWriter(logger ErrorLogger, opts ...PromOption) Writer {
-	initPromConfig(logger)
-
+	initPromWriter(logger)
 	for _, option := range opts {
 		option(defaultWriter)
 	}
 
 	if defaultWriter.endpoint != "" {
 		defaultWriter.init = true
+		logger.Infow("prom writer", "writer", fmt.Sprintf("%+v", *defaultWriter))
 	} else {
-		logger.Errorw("metric_internal_error", "error", "endpoint empty")
+		logger.Warnw("metric_internal_error", "error", "endpoint empty")
 	}
-
-	defaultWriter.initUrlAndHeader()
 	return defaultWriter
 }
 
@@ -161,7 +126,7 @@ func (w *promRemoteWriter) Write(mf *dto.MetricFamily) {
 		return
 	}
 
-	req, err = http.NewRequest(http.MethodPost, w.url, bytes.NewBuffer(snappy.Encode(nil, pbBytes)))
+	req, err = http.NewRequest(http.MethodPost, w.endpoint, bytes.NewBuffer(snappy.Encode(nil, pbBytes)))
 	if err != nil {
 		return
 	}
