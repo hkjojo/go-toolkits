@@ -37,8 +37,8 @@ func WithJSONLoggerWriter(logger JSONLogger) Option {
 	}
 }
 
-func WithPromRemoteWriter(endpoint, auth, stream string, logger ErrorLogger) Option {
+func WithPromRemoteWriter(logger ErrorLogger, opts ...PromOption) Option {
 	return func(cfg *config) {
-		cfg.writer = newPromRemoteWriter(endpoint, auth, stream, logger)
+		cfg.writer = newPromRemoteWriter(logger, opts...)
 	}
 }
