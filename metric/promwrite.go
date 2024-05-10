@@ -28,6 +28,7 @@ var (
 
 type ErrorLogger interface {
 	Errorw(string, ...interface{})
+	Debugw(string, ...interface{})
 }
 
 type PromOption func(*promRemoteWriter)
@@ -112,6 +113,8 @@ func (w *promRemoteWriter) initUrlAndHeader() {
 	w.header = map[string]string{
 		"Authorization": w.authorization,
 	}
+
+	w.logger.Debugw("initUrlAndHeader", "writer", w)
 }
 
 func newPromRemoteWriter(logger ErrorLogger, opts ...PromOption) Writer {
