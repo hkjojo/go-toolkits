@@ -42,6 +42,8 @@ type Config struct {
 	ConnectTimeout int
 	ReadTimeout    int
 	WriteTimeout   int
+	UseTLS         bool
+	TLSSkipVerify  bool
 }
 
 func (c *Config) merge(conf *Config) {
@@ -127,6 +129,17 @@ func New(conf *Config) *Pool {
 			url = "redis://" + url
 		}
 	}
+
+	var options = []redis.DialOption{
+		redis.DialConnectTimeout(time.Duration(conf.ConnectTimeout) * time.Second),
+		redis.DialReadTimeout(time.Duration(conf.ReadTimeout) * time.Second),
+		redis.DialWriteTimeout(time.Duration(conf.WriteTimeout) * time.Second),
+	}
+	if conf.UseTLS {
+		options = append(options, redis.DialUseTLS(true))
+		options = append(options, redis.DialTLSSkipVerify(conf.TLSSkipVerify))
+	}
+
 	return &Pool{
 		pool: &redis.Pool{
 			MaxIdle:     conf.MaxIdle,
@@ -134,11 +147,7 @@ func New(conf *Config) *Pool {
 			IdleTimeout: time.Duration(conf.IdleTimeout) * time.Second,
 			Wait:        true,
 			Dial: func() (redis.Conn, error) {
-				conn, err := redis.DialURL(url,
-					redis.DialConnectTimeout(time.Duration(conf.ConnectTimeout)*time.Second),
-					redis.DialReadTimeout(time.Duration(conf.ReadTimeout)*time.Second),
-					redis.DialWriteTimeout(time.Duration(conf.WriteTimeout)*time.Second),
-				)
+				conn, err := redis.DialURL(url, options...)
 				if err != nil {
 					return nil, err
 				}
@@ -202,11 +211,17 @@ func NewSentinel(conf *Config) *Pool {
 					}
 				}
 
-				conn, err := redis.DialURL("redis://"+redisURL,
-					redis.DialConnectTimeout(time.Duration(conf.ConnectTimeout)*time.Second),
-					redis.DialReadTimeout(time.Duration(conf.ReadTimeout)*time.Second),
-					redis.DialWriteTimeout(time.Duration(conf.WriteTimeout)*time.Second),
-				)
+				var options = []redis.DialOption{
+					redis.DialConnectTimeout(time.Duration(conf.ConnectTimeout) * time.Second),
+					redis.DialReadTimeout(time.Duration(conf.ReadTimeout) * time.Second),
+					redis.DialWriteTimeout(time.Duration(conf.WriteTimeout) * time.Second),
+				}
+				if conf.UseTLS {
+					options = append(options, redis.DialUseTLS(true))
+					options = append(options, redis.DialTLSSkipVerify(conf.TLSSkipVerify))
+				}
+
+				conn, err := redis.DialURL("redis://"+redisURL, options...)
 
 				if err != nil {
 					return nil, err
