@@ -119,14 +119,43 @@ func Init(conf *Config, opts ...Option) error {
 	return nil
 }
 
+func getRedisURL(addr string, tls bool) string {
+	var (
+		redisURL = addr
+		scheme   = "redis://"
+	)
+	if tls {
+		scheme = "rediss://"
+	}
+
+	switch {
+	case redisURL == "":
+		redisURL = fmt.Sprintf("%s%s", scheme, "127.0.0.1:6379")
+	case strings.HasPrefix(redisURL, "redis://") && tls:
+		redisURL = strings.Replace(redisURL, "redis://", scheme, 1)
+	case strings.HasPrefix(redisURL, "rediss://") && !tls:
+		redisURL = strings.Replace(redisURL, "rediss://", scheme, 1)
+	case !strings.HasPrefix(redisURL, scheme):
+		redisURL = fmt.Sprintf("%s%s", scheme, redisURL)
+	}
+	return redisURL
+}
+
 // New ...
 func New(conf *Config) *Pool {
-	url := conf.MasterAddr
+	var (
+		url    = conf.MasterAddr
+		scheme = "redis://"
+	)
+	if conf.UseTLS {
+		scheme = "rediss://"
+	}
+
 	if url == "" {
-		url = "redis://127.0.0.1:6379"
+		url = fmt.Sprintf("%s127.0.0.1:6379", scheme)
 	} else {
-		if !strings.HasPrefix(url, "redis://") {
-			url = "redis://" + url
+		if !strings.HasPrefix(url, scheme) {
+			url = scheme + url
 		}
 	}
 
@@ -163,14 +192,21 @@ func New(conf *Config) *Pool {
 
 // NewSentinel ...
 func NewSentinel(conf *Config) *Pool {
-	url := conf.Sentinels
+	var (
+		url    = conf.Sentinels
+		scheme = "redis://"
+	)
+	if conf.UseTLS {
+		scheme = "rediss://"
+	}
+
 	if len(url) == 0 {
-		url = []string{"redis://tasks.sentinel:26379"}
+		url = []string{fmt.Sprintf("%stasks.sentinel:26379", scheme)}
 	}
 
 	for k, v := range url {
-		if !strings.HasPrefix(v, "redis://") {
-			url[k] = "redis://" + v
+		if !strings.HasPrefix(v, scheme) {
+			url[k] = scheme + v
 		}
 	}
 	sentinelCli := sentinel.Sentinel{
@@ -221,7 +257,7 @@ func NewSentinel(conf *Config) *Pool {
 					options = append(options, redis.DialTLSSkipVerify(conf.TLSSkipVerify))
 				}
 
-				conn, err := redis.DialURL("redis://"+redisURL, options...)
+				conn, err := redis.DialURL(scheme+redisURL, options...)
 
 				if err != nil {
 					return nil, err
