@@ -29,14 +29,14 @@ import (
 */
 
 // NewTracerProvider ...
-func NewTracerProvider(opts ...otlptracehttp.Option) (trace.TracerProvider, func(), error) {
-	endpoint, ok := os.LookupEnv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
-	if ok && endpoint == "" {
+func NewTracerProvider() (trace.TracerProvider, func(), error) {
+	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
+	if endpoint == "" {
 		return noop.NewTracerProvider(), func() {}, nil
 	}
 
 	ctx := context.Background()
-	traceExp, err := otlptrace.New(ctx, otlptracehttp.NewClient(opts...))
+	traceExp, err := otlptrace.New(ctx, otlptracehttp.NewClient())
 	if err != nil {
 		return nil, nil, err
 	}

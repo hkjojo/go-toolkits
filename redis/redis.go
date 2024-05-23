@@ -42,7 +42,6 @@ type Config struct {
 	ConnectTimeout int
 	ReadTimeout    int
 	WriteTimeout   int
-	UseTLS         bool
 	TLSSkipVerify  bool
 }
 
@@ -144,19 +143,19 @@ func getRedisURL(addr string, tls bool) string {
 // New ...
 func New(conf *Config) *Pool {
 	var (
+		useTls bool
 		url    = conf.MasterAddr
-		scheme = "redis://"
 	)
-	if conf.UseTLS {
-		scheme = "rediss://"
-	}
 
 	if url == "" {
-		url = fmt.Sprintf("%s127.0.0.1:6379", scheme)
+		url = "redis://127.0.0.1:6379"
 	} else {
-		if !strings.HasPrefix(url, scheme) {
-			url = scheme + url
+		if !strings.HasPrefix(url, "redis://") {
+			url = "redis://" + url
 		}
+	}
+	if strings.HasPrefix(url, "rediss://") {
+		useTls = true
 	}
 
 	var options = []redis.DialOption{
@@ -164,7 +163,7 @@ func New(conf *Config) *Pool {
 		redis.DialReadTimeout(time.Duration(conf.ReadTimeout) * time.Second),
 		redis.DialWriteTimeout(time.Duration(conf.WriteTimeout) * time.Second),
 	}
-	if conf.UseTLS {
+	if useTls {
 		options = append(options, redis.DialUseTLS(true))
 		options = append(options, redis.DialTLSSkipVerify(conf.TLSSkipVerify))
 	}
@@ -193,20 +192,22 @@ func New(conf *Config) *Pool {
 // NewSentinel ...
 func NewSentinel(conf *Config) *Pool {
 	var (
+		useTls bool
 		url    = conf.Sentinels
 		scheme = "redis://"
 	)
-	if conf.UseTLS {
-		scheme = "rediss://"
-	}
 
 	if len(url) == 0 {
-		url = []string{fmt.Sprintf("%stasks.sentinel:26379", scheme)}
+		url = []string{"redis://tasks.sentinel:26379"}
 	}
 
 	for k, v := range url {
-		if !strings.HasPrefix(v, scheme) {
-			url[k] = scheme + v
+		if !strings.HasPrefix(v, "redis://") {
+			url[k] = "redis://" + v
+		}
+		if strings.HasPrefix(v, "rediss://") {
+			useTls = true
+			scheme = "rediss://"
 		}
 	}
 	sentinelCli := sentinel.Sentinel{
@@ -252,7 +253,7 @@ func NewSentinel(conf *Config) *Pool {
 					redis.DialReadTimeout(time.Duration(conf.ReadTimeout) * time.Second),
 					redis.DialWriteTimeout(time.Duration(conf.WriteTimeout) * time.Second),
 				}
-				if conf.UseTLS {
+				if useTls {
 					options = append(options, redis.DialUseTLS(true))
 					options = append(options, redis.DialTLSSkipVerify(conf.TLSSkipVerify))
 				}
