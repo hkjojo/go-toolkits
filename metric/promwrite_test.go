@@ -6,7 +6,6 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
-	"github.com/prometheus/prometheus/prompb"
 )
 
 func TestConvertOne(t *testing.T) {
@@ -62,11 +61,6 @@ func TestConvertOne(t *testing.T) {
 					t.Error(err)
 					return
 				}
-
-				if metadata.Type == prompb.MetricMetadata_HISTOGRAM {
-					t.Log(ts, metadata)
-				}
-
 				t.Log(ts, metadata)
 			}
 		}

@@ -118,28 +118,6 @@ func Init(conf *Config, opts ...Option) error {
 	return nil
 }
 
-func getRedisURL(addr string, tls bool) string {
-	var (
-		redisURL = addr
-		scheme   = "redis://"
-	)
-	if tls {
-		scheme = "rediss://"
-	}
-
-	switch {
-	case redisURL == "":
-		redisURL = fmt.Sprintf("%s%s", scheme, "127.0.0.1:6379")
-	case strings.HasPrefix(redisURL, "redis://") && tls:
-		redisURL = strings.Replace(redisURL, "redis://", scheme, 1)
-	case strings.HasPrefix(redisURL, "rediss://") && !tls:
-		redisURL = strings.Replace(redisURL, "rediss://", scheme, 1)
-	case !strings.HasPrefix(redisURL, scheme):
-		redisURL = fmt.Sprintf("%s%s", scheme, redisURL)
-	}
-	return redisURL
-}
-
 // New ...
 func New(conf *Config) *Pool {
 	var (
