@@ -42,6 +42,7 @@ type Config struct {
 	ConnectTimeout int
 	ReadTimeout    int
 	WriteTimeout   int
+	TLSSkipVerify  bool
 }
 
 func (c *Config) merge(conf *Config) {
@@ -119,7 +120,11 @@ func Init(conf *Config, opts ...Option) error {
 
 // New ...
 func New(conf *Config) *Pool {
-	url := conf.MasterAddr
+	var (
+		useTls bool
+		url    = conf.MasterAddr
+	)
+
 	if url == "" {
 		url = "redis://127.0.0.1:6379"
 	} else {
@@ -127,6 +132,20 @@ func New(conf *Config) *Pool {
 			url = "redis://" + url
 		}
 	}
+	if strings.HasPrefix(url, "rediss://") {
+		useTls = true
+	}
+
+	var options = []redis.DialOption{
+		redis.DialConnectTimeout(time.Duration(conf.ConnectTimeout) * time.Second),
+		redis.DialReadTimeout(time.Duration(conf.ReadTimeout) * time.Second),
+		redis.DialWriteTimeout(time.Duration(conf.WriteTimeout) * time.Second),
+	}
+	if useTls {
+		options = append(options, redis.DialUseTLS(true))
+		options = append(options, redis.DialTLSSkipVerify(conf.TLSSkipVerify))
+	}
+
 	return &Pool{
 		pool: &redis.Pool{
 			MaxIdle:     conf.MaxIdle,
@@ -134,11 +153,7 @@ func New(conf *Config) *Pool {
 			IdleTimeout: time.Duration(conf.IdleTimeout) * time.Second,
 			Wait:        true,
 			Dial: func() (redis.Conn, error) {
-				conn, err := redis.DialURL(url,
-					redis.DialConnectTimeout(time.Duration(conf.ConnectTimeout)*time.Second),
-					redis.DialReadTimeout(time.Duration(conf.ReadTimeout)*time.Second),
-					redis.DialWriteTimeout(time.Duration(conf.WriteTimeout)*time.Second),
-				)
+				conn, err := redis.DialURL(url, options...)
 				if err != nil {
 					return nil, err
 				}
@@ -154,7 +169,12 @@ func New(conf *Config) *Pool {
 
 // NewSentinel ...
 func NewSentinel(conf *Config) *Pool {
-	url := conf.Sentinels
+	var (
+		useTls bool
+		url    = conf.Sentinels
+		scheme = "redis://"
+	)
+
 	if len(url) == 0 {
 		url = []string{"redis://tasks.sentinel:26379"}
 	}
@@ -162,6 +182,10 @@ func NewSentinel(conf *Config) *Pool {
 	for k, v := range url {
 		if !strings.HasPrefix(v, "redis://") {
 			url[k] = "redis://" + v
+		}
+		if strings.HasPrefix(v, "rediss://") {
+			useTls = true
+			scheme = "rediss://"
 		}
 	}
 	sentinelCli := sentinel.Sentinel{
@@ -202,11 +226,17 @@ func NewSentinel(conf *Config) *Pool {
 					}
 				}
 
-				conn, err := redis.DialURL("redis://"+redisURL,
-					redis.DialConnectTimeout(time.Duration(conf.ConnectTimeout)*time.Second),
-					redis.DialReadTimeout(time.Duration(conf.ReadTimeout)*time.Second),
-					redis.DialWriteTimeout(time.Duration(conf.WriteTimeout)*time.Second),
-				)
+				var options = []redis.DialOption{
+					redis.DialConnectTimeout(time.Duration(conf.ConnectTimeout) * time.Second),
+					redis.DialReadTimeout(time.Duration(conf.ReadTimeout) * time.Second),
+					redis.DialWriteTimeout(time.Duration(conf.WriteTimeout) * time.Second),
+				}
+				if useTls {
+					options = append(options, redis.DialUseTLS(true))
+					options = append(options, redis.DialTLSSkipVerify(conf.TLSSkipVerify))
+				}
+
+				conn, err := redis.DialURL(scheme+redisURL, options...)
 
 				if err != nil {
 					return nil, err

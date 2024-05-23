@@ -27,8 +27,7 @@ var (
 	ClusterPodName string
 	// Datadog agent host
 	DDAgentHost string
-
-	ID, _ = os.Hostname()
+	ID, _       = os.Hostname()
 
 	EmptyApp = &cli.App{}
 
