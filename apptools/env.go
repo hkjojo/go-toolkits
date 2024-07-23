@@ -13,7 +13,7 @@ var (
 	// ...
 	ConfigFilePath string
 	// Name is the name of the compiled software.
-	Name = "dcprime.service.basic"
+	Name = "acttrade.service.basic"
 	// Version is the version of the compiled software.
 	Version string
 	// Tag is for identify different envs like demo/live.
@@ -27,8 +27,7 @@ var (
 	ClusterPodName string
 	// Datadog agent host
 	DDAgentHost string
-
-	ID, _ = os.Hostname()
+	ID, _       = os.Hostname()
 
 	EmptyApp = &cli.App{}
 
