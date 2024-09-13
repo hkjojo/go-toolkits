@@ -271,10 +271,10 @@ func toMetricType(metricType dto.MetricType) prompb.MetricMetadata_MetricType {
 	return prompb.MetricMetadata_UNKNOWN
 }
 
-func spansToSpansProto(s []*dto.BucketSpan) []*prompb.BucketSpan {
-	spans := make([]*prompb.BucketSpan, len(s))
+func spansToSpansProto(s []*dto.BucketSpan) []prompb.BucketSpan {
+	spans := make([]prompb.BucketSpan, len(s))
 	for i := 0; i < len(s); i++ {
-		spans[i] = &prompb.BucketSpan{Offset: s[i].GetOffset(), Length: s[i].GetLength()}
+		spans[i] = prompb.BucketSpan{Offset: s[i].GetOffset(), Length: s[i].GetLength()}
 	}
 	return spans
 }

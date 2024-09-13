@@ -1,21 +1,11 @@
 package metric
 
 import (
-	"encoding/json"
-	"fmt"
-	"testing"
-
 	"math/rand"
+	"testing"
 	"time"
 
-	// "github.com/go-kratos/kratos/v2/middleware/metrics"
-
-	prom "github.com/go-kratos/kratos/contrib/metrics/prometheus/v2"
 	"github.com/prometheus/client_golang/prometheus"
-
-	dto "github.com/prometheus/client_model/go"
-
-	// "github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/client_golang/prometheus/push"
 )
 
@@ -37,23 +27,17 @@ var (
 )
 
 func TestPushCounter(t *testing.T) {
-	pusher := push.New("http://localhost:9091/", "test_job")
-	pc := prom.NewCounter(_metricRequests)
-	pusher.Collector(_metricRequests)
+	pusher := push.
+		New("http://localhost:9091/", "test_job").
+		Collector(_metricRequests)
+
 	ticker := time.NewTicker(5 * time.Second)
 	for {
 		<-ticker.C
 
-		var mc = make(chan prometheus.Metric, 1024)
-		pc.With(fmt.Sprintf("%d", rand.Intn(200))).Add(float64(rand.Intn(10)))
-		_metricRequests.Collect(mc)
-		close(mc)
-		for m := range mc {
-			var dm dto.Metric
-			m.Write(&dm)
-			bs, _ := json.Marshal(dm)
-			t.Logf("%s", string(bs))
-		}
+		_metricRequests.
+			WithLabelValues("kind-val", "operation-val", "code-val", "reason-val").
+			Inc()
 
 		t.Log("before push")
 		err := pusher.Push()
@@ -64,23 +48,17 @@ func TestPushCounter(t *testing.T) {
 }
 
 func TestPushHistogrm(t *testing.T) {
-	pusher := push.New("http://localhost:9091/", "test_job")
-	pc := prom.NewHistogram(_metricSeconds)
-	pusher.Collector(_metricSeconds)
+	pusher := push.
+		New("http://localhost:9091/", "test_job").
+		Collector(_metricSeconds)
+
 	ticker := time.NewTicker(5 * time.Second)
 	for {
 		<-ticker.C
 
-		var mc = make(chan prometheus.Metric, 1024)
-		pc.With("/api/test").Observe(float64(rand.Intn(30)))
-		_metricSeconds.Collect(mc)
-		close(mc)
-		for m := range mc {
-			var dm dto.Metric
-			m.Write(&dm)
-			bs, _ := json.Marshal(dm)
-			t.Logf("%s", string(bs))
-		}
+		_metricSeconds.
+			WithLabelValues("http", "/api/test/").
+			Observe(float64(rand.Intn(30)))
 
 		t.Log("before push")
 		err := pusher.Push()
