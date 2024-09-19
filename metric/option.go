@@ -5,9 +5,10 @@ import (
 )
 
 type config struct {
-	interval  time.Duration
-	withoutUp bool
-	writer    Writer
+	interval     time.Duration
+	withoutUp    bool
+	collectStats bool
+	writer       Writer
 }
 
 type Option func(*config)
@@ -30,6 +31,12 @@ func WithoutUpMetric() Option {
 	}
 }
 
+func WithStatsMetric() Option {
+	return func(cfg *config) {
+		cfg.collectStats = true
+	}
+}
+
 // WithJSONLoggerWriter if set, the metric will become a logger metric
 func WithJSONLoggerWriter(logger JSONLogger) Option {
 	return func(cfg *config) {
@@ -37,8 +44,8 @@ func WithJSONLoggerWriter(logger JSONLogger) Option {
 	}
 }
 
-func WithPromRemoteWriter(logger ErrorLogger, opts ...PromOption) Option {
+func WithOpenobserveWriter(logger ErrorLogger, opts ...PromOption) Option {
 	return func(cfg *config) {
-		cfg.writer = newPromRemoteWriter(logger, opts...)
+		cfg.writer = newOpenobserveWriter(logger, opts...)
 	}
 }

@@ -36,6 +36,9 @@ var (
 
 	// default register
 	register = prometheus.NewRegistry()
+
+	// default runtime gauge
+	runtimeGauge Gauge
 )
 
 // MustRegister for the metrics not use NewCounter/NewGauge/New...
@@ -57,6 +60,10 @@ func Start(options ...Option) (func(), error) {
 		registerUp()
 	}
 
+	if dc.collectStats {
+		registerStats()
+	}
+
 	ticker := time.NewTicker(dc.interval)
 	go func() {
 		for range ticker.C {
@@ -70,6 +77,10 @@ func Start(options ...Option) (func(), error) {
 }
 
 func metricCollector() {
+	if dc.collectStats {
+		collectStats()
+	}
+
 	mfs, err := register.Gather()
 	if err != nil {
 		dc.writer.OnError(err)
@@ -87,4 +98,32 @@ func registerUp() {
 		Help: "the service up status",
 	}, []string{"go_version"}))
 	gauge.With(runtime.Version()).Set(1)
+}
+
+func registerStats() {
+	runtimeGauge = NewGauge(prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "runtime",
+		Help: "the service stats",
+	}, []string{"stats"}))
+}
+
+func collectStats() {
+	numRoutines := runtime.NumGoroutine()
+	runtimeGauge.With("num_goroutines").Set(float64(numRoutines))
+	numCgoCall := runtime.NumCgoCall()
+	runtimeGauge.With("num_cgo_call").Set(float64(numCgoCall))
+	var stats runtime.MemStats
+	runtime.ReadMemStats(&stats)
+	// system
+	runtimeGauge.With("sys_bytes").Set(float64(stats.Sys))
+	// heap
+	runtimeGauge.With("malloc_count").Set(float64(stats.Mallocs))
+	runtimeGauge.With("free_count").Set(float64(stats.Frees))
+	runtimeGauge.With("alloc_bytes").Set(float64(stats.Alloc))
+	runtimeGauge.With("heap_objects").Set(float64(stats.HeapObjects))
+	//stack
+	runtimeGauge.With("stack_sys_bytes").Set(float64(stats.StackSys))
+	// gc
+	runtimeGauge.With("total_gc_pause_ns").Set(float64(stats.PauseTotalNs))
+	runtimeGauge.With("total_gc_runs").Set(float64(stats.NumGC))
 }
