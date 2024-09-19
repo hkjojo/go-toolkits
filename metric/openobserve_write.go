@@ -17,13 +17,15 @@ import (
 )
 
 const (
-	labelName  = "__name__"
-	serverName = "server_name"
+	streamLable       = "__name__"
+	metricLable       = "metric_name"
+	serverLable       = "server_name"
+	defaultStreamName = "go"
 )
 
 var (
 	metricNameRE  = regexp.MustCompile(`^[a-zA-Z_:][a-zA-Z0-9_:]*$`)
-	defaultWriter *promRemoteWriter
+	defaultWriter *openobserveWriter
 )
 
 type ErrorLogger interface {
@@ -32,44 +34,51 @@ type ErrorLogger interface {
 	Infow(string, ...interface{})
 }
 
-type PromOption func(*promRemoteWriter)
+type PromOption func(*openobserveWriter)
 
-type promRemoteWriter struct {
-	init     bool
-	endpoint string
-	header   map[string]string
-	client   *http.Client
-	logger   ErrorLogger
+type openobserveWriter struct {
+	init        bool
+	endpoint    string
+	header      map[string]string
+	client      *http.Client
+	logger      ErrorLogger
+	serviceName string
+	streamName  string
 }
 
 // WithHTTPClient ...
 func WithHTTPClient(client *http.Client) PromOption {
-	return func(writer *promRemoteWriter) {
+	return func(writer *openobserveWriter) {
 		writer.client = client
 	}
 }
 
 // WithEndpoint ...
 func WithEndpoint(endpoint string) PromOption {
-	return func(writer *promRemoteWriter) {
+	return func(writer *openobserveWriter) {
 		writer.endpoint = endpoint
 	}
 }
 
 // WithHeader ...
 func WithHeader(header map[string]string) PromOption {
-	return func(writer *promRemoteWriter) {
+	return func(writer *openobserveWriter) {
 		writer.header = header
 	}
 }
 
-func initPromWriter(logger ErrorLogger) {
-	defaultWriter = &promRemoteWriter{
-		endpoint: os.Getenv("METRIC_ENDPOINT"),
-		client:   &http.Client{Timeout: time.Second * 30},
-		logger:   logger,
+func initOpenobserveWriter(logger ErrorLogger) {
+	defaultWriter = &openobserveWriter{
+		serviceName: os.Getenv("SERVICE_NAME"),
+		endpoint:    os.Getenv("METRIC_ENDPOINT"),
+		streamName:  os.Getenv("METRIC_OPEN_STREAM_NAME"),
+		client:      &http.Client{Timeout: time.Second * 30},
+		logger:      logger,
 	}
 
+	if defaultWriter.streamName == "" {
+		defaultWriter.streamName = defaultStreamName
+	}
 	header, ok := os.LookupEnv("METRIC_HEADERS")
 	if ok {
 		hm := make(map[string]string)
@@ -84,8 +93,8 @@ func initPromWriter(logger ErrorLogger) {
 	}
 }
 
-func newPromRemoteWriter(logger ErrorLogger, opts ...PromOption) Writer {
-	initPromWriter(logger)
+func newOpenobserveWriter(logger ErrorLogger, opts ...PromOption) Writer {
+	initOpenobserveWriter(logger)
 	for _, option := range opts {
 		option(defaultWriter)
 	}
@@ -99,7 +108,7 @@ func newPromRemoteWriter(logger ErrorLogger, opts ...PromOption) Writer {
 	return defaultWriter
 }
 
-func (w *promRemoteWriter) Write(mf *dto.MetricFamily) {
+func (w *openobserveWriter) Write(mf *dto.MetricFamily) {
 	if !w.init {
 		return
 	}
@@ -117,7 +126,7 @@ func (w *promRemoteWriter) Write(mf *dto.MetricFamily) {
 		}
 	}()
 
-	pbData, err = toPrometheusPbWriteRequest(mf)
+	pbData, err = w.toPrometheusPbWriteRequest(mf)
 	if err != nil {
 		return
 	}
@@ -150,33 +159,40 @@ func (w *promRemoteWriter) Write(mf *dto.MetricFamily) {
 	}
 }
 
-func (w *promRemoteWriter) OnError(err error) {
+func (w *openobserveWriter) OnError(err error) {
 	w.logger.Errorw("metric_internal_error", "error", err)
 }
 
-func convertOne(mf *dto.MetricFamily) (prompb.TimeSeries, prompb.MetricMetadata, error) {
+func (w *openobserveWriter) convert(mf *dto.MetricFamily) ([]prompb.TimeSeries, error) {
 	if !metricNameRE.MatchString(mf.GetName()) {
-		return prompb.TimeSeries{}, prompb.MetricMetadata{}, errors.New("invalid metrics name")
+		return nil, errors.New("invalid metrics name")
 	}
 	if mf.Type == nil {
-		return prompb.TimeSeries{}, prompb.MetricMetadata{}, errors.New("invalid metrics type")
+		return nil, errors.New("invalid metrics type")
 	}
 
 	var metrics = mf.GetMetric()
 	if metrics == nil {
-		return prompb.TimeSeries{}, prompb.MetricMetadata{}, errors.New("metrics empty")
+		return nil, errors.New("metrics empty")
 	}
 
 	var (
-		lbs        []prompb.Label
-		samples    []prompb.Sample
-		histograms []prompb.Histogram
+		defaultLbs []prompb.Label
+		timeseries []prompb.TimeSeries
 	)
 	// reserved label name
-	lbs = append(lbs, prompb.Label{Name: labelName, Value: mf.GetName()})
-	lbs = append(lbs, prompb.Label{Name: serverName, Value: os.Getenv("SERVICE_NAME")})
+	defaultLbs = append(defaultLbs,
+		prompb.Label{Name: streamLable, Value: w.streamName},
+		prompb.Label{Name: serverLable, Value: w.serviceName},
+		prompb.Label{Name: metricLable, Value: mf.GetName()},
+	)
 
 	for _, metric := range metrics {
+		var (
+			lbs        []prompb.Label
+			samples    []prompb.Sample
+			histograms []prompb.Histogram
+		)
 		for _, lb := range metric.GetLabel() {
 			if lb == nil {
 				continue
@@ -225,34 +241,39 @@ func convertOne(mf *dto.MetricFamily) (prompb.TimeSeries, prompb.MetricMetadata,
 			} else {
 				pbHist.ZeroCount = &prompb.Histogram_ZeroCountFloat{ZeroCountFloat: hist.GetZeroCountFloat()}
 			}
-
 			histograms = append(histograms, pbHist)
 		}
+		lbs = append(lbs, defaultLbs...)
+		timeseries = append(timeseries, prompb.TimeSeries{
+			Labels:     lbs,
+			Samples:    samples,
+			Histograms: histograms,
+		})
 	}
 
-	metadata := prompb.MetricMetadata{
+	return timeseries, nil
+}
+
+func (w *openobserveWriter) toPrometheusPbWriteRequest(mf *dto.MetricFamily) (*prompb.WriteRequest, error) {
+	ts, err := w.convert(mf)
+	if err != nil {
+		return nil, err
+	}
+	metadata := getMetadata(mf)
+	metadata.MetricFamilyName = w.streamName
+	return &prompb.WriteRequest{
+		Timeseries: ts,
+		Metadata:   []prompb.MetricMetadata{metadata},
+	}, nil
+}
+
+func getMetadata(mf *dto.MetricFamily) prompb.MetricMetadata {
+	return prompb.MetricMetadata{
 		Type:             toMetricType(mf.GetType()),
 		MetricFamilyName: mf.GetName(),
 		Help:             mf.GetHelp(),
 		Unit:             mf.GetUnit(),
 	}
-
-	return prompb.TimeSeries{
-		Labels:     lbs,
-		Samples:    samples,
-		Histograms: histograms,
-	}, metadata, nil
-}
-
-func toPrometheusPbWriteRequest(mf *dto.MetricFamily) (*prompb.WriteRequest, error) {
-	ts, metadata, err := convertOne(mf)
-	if err != nil {
-		return nil, err
-	}
-	return &prompb.WriteRequest{
-		Timeseries: []prompb.TimeSeries{ts},
-		Metadata:   []prompb.MetricMetadata{metadata},
-	}, nil
 }
 
 func toMetricType(metricType dto.MetricType) prompb.MetricMetadata_MetricType {

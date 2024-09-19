@@ -56,11 +56,12 @@ func TestConvertOne(t *testing.T) {
 			}
 
 			for _, mf := range mfs {
-				ts, metadata, err := convertOne(mf)
+				ts, err := convertOne(mf)
 				if err != nil {
 					t.Error(err)
 					return
 				}
+				metadata := getMetadata(mf)
 				t.Log(ts, metadata)
 			}
 		}
