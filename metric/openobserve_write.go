@@ -71,7 +71,7 @@ func initOpenobserveWriter(logger ErrorLogger) {
 	defaultWriter = &openobserveWriter{
 		serviceName: os.Getenv("SERVICE_NAME"),
 		endpoint:    os.Getenv("METRIC_ENDPOINT"),
-		streamName:  os.Getenv("METRIC_OPEN_STREAM_NAME"),
+		streamName:  os.Getenv("METRIC_OPENOBSERVE_STREAM_NAME"),
 		client:      &http.Client{Timeout: time.Second * 30},
 		logger:      logger,
 	}
