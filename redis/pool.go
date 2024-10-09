@@ -320,6 +320,22 @@ func (p *Pool) HGetAll(key string, value interface{}) error {
 	return nil
 }
 
+// HGetAllStringMap ...
+func (p *Pool) HGetAllStringMap(key string) (map[string]string, error) {
+	var (
+		conn = p.Conn()
+		err  error
+	)
+
+	defer conn.Close()
+
+	v, err := redis.StringMap(conn.Do("HGETALL", key))
+	if err != nil {
+		return nil, err
+	}
+	return v, nil
+}
+
 // Get ...
 func (p *Pool) Get(key string) (string, error) {
 
