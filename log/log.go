@@ -191,6 +191,8 @@ func New(config *Config) (*Logger, error) {
 		ecoder = zapcore.NewJSONEncoder(encoderConfig)
 	case "fix":
 		ecoder = encoder.NewFixEncoder(encoderConfig)
+	case "text":
+		ecoder = encoder.NewTextEncoder(encoderConfig)
 	default:
 		ecoder = zapcore.NewConsoleEncoder(encoderConfig)
 	}
