@@ -66,7 +66,7 @@ func (enc *textEncoder) clone() *textEncoder {
 
 func (enc *textEncoder) formatHeader(t time.Time, level zapcore.Level, caller zapcore.EntryCaller) {
 	// time
-	enc.buf.AppendString(t.Format(textTimeFormat))
+	enc.AppendString(t.Format(textTimeFormat))
 	enc.AppendString("\t")
 	// level
 	cur := enc.buf.Len()
@@ -98,11 +98,11 @@ func (enc *textEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (
 
 	// message
 	if final.MessageKey != "" {
-		final.buf.AppendString(ent.Message)
+		final.AppendString(ent.Message)
 	}
 
 	if len(fields) > 0 {
-		final.buf.AppendByte(' ')
+		enc.addSeparator()
 		for i := range fields {
 			fields[i].AddTo(final)
 		}
