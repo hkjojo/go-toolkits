@@ -2,11 +2,12 @@ package sql
 
 import (
 	"context"
-	"gorm.io/gorm/schema"
 	"runtime"
 	"time"
 
-	goqu "github.com/doug-martin/goqu/v9"
+	"gorm.io/gorm/schema"
+
+	"github.com/doug-martin/goqu/v9"
 	"github.com/pkg/errors"
 
 	"gorm.io/driver/clickhouse"
@@ -49,6 +50,7 @@ type Config struct {
 	MaxOpenConns    int
 	MaxIdleConns    int
 	ConnMaxLifetime time.Duration
+	ConnMaxIdleTime time.Duration
 	Debug           bool
 }
 
@@ -115,6 +117,10 @@ func Open(cfg *Config, opts ...gorm.Option) (*DataBase, error) {
 
 	if cfg.ConnMaxLifetime != 0 {
 		conn.SetConnMaxLifetime(cfg.ConnMaxLifetime)
+	}
+
+	if cfg.ConnMaxIdleTime != 0 {
+		conn.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
 	}
 
 	goquDB, err := NewGoqu(cfg.Dialect, conn)
