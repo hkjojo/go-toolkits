@@ -109,11 +109,11 @@ func (enc *textEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (
 	}
 
 	if ent.Stack != "" {
-		final.buf.AppendString("\n")
-		final.buf.AppendString(ent.Stack)
+		final.AppendString("\n")
+		final.AppendString(ent.Stack)
 	}
 
-	final.buf.AppendString("\n")
+	final.AppendString("\n")
 
 	ret := final.buf
 	putTextEncoder(final)
@@ -200,7 +200,6 @@ func (enc *textEncoder) AddFloat64(key string, val float64) {
 }
 
 func (enc *textEncoder) appendFloat(val float64, bitSize int) {
-	enc.addSeparator()
 	switch {
 	case math.IsNaN(val):
 		enc.buf.AppendString(`"NaN"`)
@@ -265,12 +264,10 @@ func (enc *textEncoder) AppendUintptr(u uintptr)            { enc.AppendUint64(u
 func (enc *textEncoder) AppendComplex64(c complex64)        { enc.AppendComplex128(complex128(c)) }
 
 func (enc *textEncoder) AppendInt64(val int64) {
-	enc.addSeparator()
 	enc.buf.AppendInt(val)
 }
 
 func (enc *textEncoder) AppendUint64(u uint64) {
-	enc.addSeparator()
 	enc.buf.AppendUint(u)
 }
 
