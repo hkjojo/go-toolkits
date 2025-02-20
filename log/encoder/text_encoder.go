@@ -43,11 +43,6 @@ type textEncoder struct {
 	reflectEnc *json.Encoder
 }
 
-func (enc *textEncoder) AppendComplex64(c complex64) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func NewTextEncoder(cfg zapcore.EncoderConfig) zapcore.Encoder {
 	return &textEncoder{
 		EncoderConfig: &cfg,
@@ -71,15 +66,33 @@ func (enc *textEncoder) clone() *textEncoder {
 func (enc *textEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (*buffer.Buffer, error) {
 	final := enc.clone()
 
-	// 格式化头部
-	final.formatHeader(ent.Time, ent.Caller)
+	// time
+	if final.TimeKey != "" {
+		final.AppendTime(ent.Time)
+	}
+	//enc.buf.AppendString(ent.Time.Format(textTimeFormat))
+	enc.buf.AppendByte('\t')
 
-	// 主消息
+	// level
+	if final.LevelKey != "" {
+		cur := final.buf.Len()
+		final.EncodeLevel(ent.Level, final)
+		if cur == final.buf.Len() {
+			// User-supplied EncodeLevel was a no-op. Fall back to strings to keep
+			// output JSON valid.
+			final.AppendString(ent.Level.String())
+		}
+	}
+
+	// caller
+	enc.AppendString(ent.Caller.TrimmedPath())
+	enc.buf.AppendByte('\t')
+
+	// message
 	if final.MessageKey != "" {
 		final.buf.AppendString(ent.Message)
 	}
 
-	// 附加字段
 	if len(fields) > 0 {
 		final.buf.AppendByte(' ')
 		for i := range fields {
@@ -87,13 +100,11 @@ func (enc *textEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (
 		}
 	}
 
-	// 错误堆栈
 	if ent.Stack != "" {
 		final.buf.AppendString("\n")
 		final.buf.AppendString(ent.Stack)
 	}
 
-	// 换行结尾
 	final.buf.AppendString("\n")
 
 	ret := final.buf
@@ -148,18 +159,6 @@ func (enc *textEncoder) AddReflected(key string, val interface{}) error {
 
 func (enc *textEncoder) OpenNamespace(key string) {
 	enc.buf.AppendString(key)
-}
-
-func (enc *textEncoder) formatHeader(t time.Time, caller zapcore.EntryCaller) {
-	// 时间格式化
-	enc.buf.AppendString(t.Format(textTimeFormat))
-	enc.buf.AppendByte(' ')
-
-	// 调用者信息
-	if caller.Defined {
-		enc.AppendString(caller.TrimmedPath())
-		enc.buf.AppendByte(' ')
-	}
 }
 
 func (enc *textEncoder) addKey(key string) {
@@ -272,6 +271,7 @@ func (enc *textEncoder) AppendUint32(u uint32)              { enc.AppendUint64(u
 func (enc *textEncoder) AppendUint16(u uint16)              { enc.AppendUint64(uint64(u)) }
 func (enc *textEncoder) AppendUint8(u uint8)                { enc.AppendUint64(uint64(u)) }
 func (enc *textEncoder) AppendUintptr(u uintptr)            { enc.AppendUint64(uint64(u)) }
+func (enc *textEncoder) AppendComplex64(c complex64)        { enc.AppendComplex128(complex128(c)) }
 
 func (enc *textEncoder) AppendInt64(val int64) {
 	enc.addSeparator()
