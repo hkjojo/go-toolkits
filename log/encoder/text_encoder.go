@@ -68,14 +68,18 @@ func (enc *textEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (
 	final := enc.clone()
 
 	// time
-	if final.TimeKey != "" {
-		enc.buf.AppendString(ent.Time.Format(textTimeFormat))
-		enc.buf.AppendByte('\t')
-	}
+	enc.buf.AppendString(ent.Time.Format(textTimeFormat))
+	enc.buf.AppendByte('\t')
 
 	// level
 	if final.LevelKey != "" {
-		final.AppendString(ent.Level.String())
+		cur := final.buf.Len()
+		final.EncodeLevel(ent.Level, final)
+		if cur == final.buf.Len() {
+			// User-supplied EncodeLevel was a no-op. Fall back to strings to keep
+			// output JSON valid.
+			final.AppendString(ent.Level.String())
+		}
 		enc.buf.AppendByte('\t')
 	}
 
