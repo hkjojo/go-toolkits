@@ -67,16 +67,16 @@ func (enc *textEncoder) clone() *textEncoder {
 func (enc *textEncoder) formatHeader(t time.Time, level zapcore.Level, caller zapcore.EntryCaller) {
 	// time
 	enc.buf.AppendString(t.Format(textTimeFormat))
-	enc.buf.AppendByte('\t')
+	enc.buf.AppendString("\t")
 
 	// level
 	enc.buf.AppendString(level.String())
-	enc.buf.AppendByte('\t')
+	enc.buf.AppendString("\t")
 
 	// caller
 	if caller.Defined {
 		enc.buf.AppendString(caller.TrimmedPath())
-		enc.buf.AppendByte('\t')
+		enc.buf.AppendString("\t")
 	}
 }
 
