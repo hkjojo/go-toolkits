@@ -67,16 +67,27 @@ func (enc *textEncoder) clone() *textEncoder {
 func (enc *textEncoder) formatHeader(t time.Time, level zapcore.Level, caller zapcore.EntryCaller) {
 	// time
 	enc.buf.AppendString(t.Format(textTimeFormat))
-	enc.buf.AppendByte('\t')
-
+	enc.AppendString("\t")
 	// level
-	enc.buf.AppendString(level.String())
-	enc.buf.AppendByte('\t')
+	cur := enc.buf.Len()
+	enc.EncodeLevel(level, enc)
+	if cur == enc.buf.Len() {
+		// User-supplied EncodeLevel was a no-op. Fall back to strings to keep
+		// output JSON valid.
+		enc.AppendString(level.String())
+	}
+	enc.AppendString("\t")
 
 	// caller
 	if caller.Defined {
-		enc.buf.AppendString(caller.TrimmedPath())
-		enc.buf.AppendByte('\t')
+		cur = enc.buf.Len()
+		enc.EncodeCaller(caller, enc)
+		if cur == enc.buf.Len() {
+			// User-supplied EncodeCaller was a no-op. Fall back to strings to
+			// keep output JSON valid.
+			enc.AppendString(caller.String())
+		}
+		enc.AppendString("\t")
 	}
 }
 
