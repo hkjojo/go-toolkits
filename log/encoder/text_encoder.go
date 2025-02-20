@@ -64,28 +64,26 @@ func (enc *textEncoder) clone() *textEncoder {
 	return clone
 }
 
-func (enc *textEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (*buffer.Buffer, error) {
-	final := enc.clone()
-
+func (enc *textEncoder) formatHeader(t time.Time, level zapcore.Level, caller zapcore.EntryCaller) {
 	// time
-	enc.buf.AppendString(ent.Time.Format(textTimeFormat))
+	enc.buf.AppendString(t.Format(textTimeFormat))
 	enc.buf.AppendByte('\t')
 
 	// level
-	if final.LevelKey != "" {
-		cur := final.buf.Len()
-		final.EncodeLevel(ent.Level, final)
-		if cur == final.buf.Len() {
-			// User-supplied EncodeLevel was a no-op. Fall back to strings to keep
-			// output JSON valid.
-			final.AppendString(ent.Level.String())
-		}
-		enc.buf.AppendByte('\t')
-	}
+	enc.buf.AppendString(level.String())
+	enc.buf.AppendByte('\t')
 
 	// caller
-	enc.AppendString(ent.Caller.TrimmedPath())
-	enc.buf.AppendByte('\t')
+	if caller.Defined {
+		enc.buf.AppendString(caller.TrimmedPath())
+		enc.buf.AppendByte('\t')
+	}
+}
+
+func (enc *textEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (*buffer.Buffer, error) {
+	final := enc.clone()
+
+	enc.formatHeader(ent.Time, ent.Level, ent.Caller)
 
 	// message
 	if final.MessageKey != "" {
@@ -152,7 +150,7 @@ func (enc *textEncoder) AddUint64(key string, val uint64) {
 
 func (enc *textEncoder) AddReflected(key string, val interface{}) error {
 	enc.addKey(key)
-	enc.AppendString(fmt.Sprintf("%v", val))
+	enc.buf.AppendString(fmt.Sprintf("%+v", val))
 	return nil
 }
 
@@ -162,34 +160,17 @@ func (enc *textEncoder) OpenNamespace(key string) {
 
 func (enc *textEncoder) addKey(key string) {
 	enc.addSeparator()
-	enc.AppendString(key)
+	enc.buf.AppendString(key)
 	enc.buf.AppendByte(':')
 }
 
 func (enc *textEncoder) AddString(key, val string) {
 	enc.addKey(key)
-	enc.AppendString(val)
+	enc.buf.AppendString(val)
 }
 
 func (enc *textEncoder) AppendString(val string) {
-	// 简单转义处理
-	enc.buf.AppendByte('"')
-	for _, r := range val {
-		switch r {
-		case '\\', '"':
-			enc.buf.AppendByte('\\')
-			enc.buf.AppendByte(byte(r))
-		case '\n':
-			enc.buf.AppendString("\\n")
-		case '\r':
-			enc.buf.AppendString("\\r")
-		case '\t':
-			enc.buf.AppendString("\\t")
-		default:
-			enc.buf.AppendByte(byte(r))
-		}
-	}
-	enc.buf.AppendByte('"')
+	enc.buf.AppendString(val)
 }
 
 func (enc *textEncoder) AddInt64(key string, val int64) {
