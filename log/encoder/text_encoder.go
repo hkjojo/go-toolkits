@@ -4,11 +4,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"go.uber.org/zap/buffer"
-	"go.uber.org/zap/zapcore"
 	"math"
 	"sync"
 	"time"
+
+	"go.uber.org/zap/buffer"
+	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -68,20 +69,14 @@ func (enc *textEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (
 
 	// time
 	if final.TimeKey != "" {
-		final.AppendTime(ent.Time)
+		enc.buf.AppendString(ent.Time.Format(textTimeFormat))
+		enc.buf.AppendByte('\t')
 	}
-	//enc.buf.AppendString(ent.Time.Format(textTimeFormat))
-	enc.buf.AppendByte('\t')
 
 	// level
 	if final.LevelKey != "" {
-		cur := final.buf.Len()
-		final.EncodeLevel(ent.Level, final)
-		if cur == final.buf.Len() {
-			// User-supplied EncodeLevel was a no-op. Fall back to strings to keep
-			// output JSON valid.
-			final.AppendString(ent.Level.String())
-		}
+		final.AppendString(ent.Level.String())
+		enc.buf.AppendByte('\t')
 	}
 
 	// caller
