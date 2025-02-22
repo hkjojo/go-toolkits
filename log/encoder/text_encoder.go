@@ -12,10 +12,6 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-const (
-	textTimeFormat = "2006-01-02 15:04:05.000"
-)
-
 var (
 	_textPool = sync.Pool{New: func() interface{} {
 		return &textEncoder{}
@@ -66,29 +62,18 @@ func (enc *textEncoder) clone() *textEncoder {
 
 func (enc *textEncoder) formatHeader(t time.Time, level zapcore.Level, caller zapcore.EntryCaller) {
 	// time
-	enc.AppendString(t.Format(textTimeFormat))
-	enc.AppendString("\t")
-	// level
-	cur := enc.buf.Len()
-	enc.EncodeLevel(level, enc)
-	if cur == enc.buf.Len() {
-		// User-supplied EncodeLevel was a no-op. Fall back to strings to keep
-		// output JSON valid.
-		enc.AppendString(level.String())
-	}
+	enc.AppendString(t.UTC().Format(textTimeFormat))
 	enc.AppendString("\t")
 
-	// caller
+	// level
+	enc.EncodeLevel(level, enc)
+	enc.AppendString("\t\t")
+
+	/*// caller
 	if caller.Defined {
-		cur = enc.buf.Len()
 		enc.EncodeCaller(caller, enc)
-		if cur == enc.buf.Len() {
-			// User-supplied EncodeCaller was a no-op. Fall back to strings to
-			// keep output JSON valid.
-			enc.AppendString(caller.String())
-		}
 		enc.AppendString("\t")
-	}
+	}*/
 }
 
 func (enc *textEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (*buffer.Buffer, error) {
@@ -96,16 +81,18 @@ func (enc *textEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (
 
 	final.formatHeader(ent.Time, ent.Level, ent.Caller)
 
+	if len(fields) >= 1 {
+		// log type
+		final.AppendString(fields[0].Key)
+		final.AppendString("\t\t\t")
+		// log source
+		final.AppendString(fields[0].String)
+		final.AppendString("\t\t\t\t")
+	}
+
 	// message
 	if final.MessageKey != "" {
 		final.AppendString(ent.Message)
-	}
-
-	if len(fields) > 0 {
-		enc.addSeparator()
-		for i := range fields {
-			fields[i].AddTo(final)
-		}
 	}
 
 	if ent.Stack != "" {

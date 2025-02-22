@@ -30,9 +30,9 @@ func TestTextEncodeEntry(t *testing.T) {
 			desc: "info entry with some fields",
 			expected: `{
 				"L": "info",
-				"T": "2025-02-20 18:22:42.000",
+				"T": "2025-02-20 20:28:42.000",
 				"N": "bob",
-				"M": "lob law",
+				"M": "m1 tick chart",
 				"so": "passes",
 				"answer": 42,
 				"common_pie": 3.14,
@@ -50,11 +50,12 @@ func TestTextEncodeEntry(t *testing.T) {
 			}`,
 			ent: zapcore.Entry{
 				Level:      zapcore.InfoLevel,
-				Time:       time.Date(2025, 2, 20, 18, 22, 42, 99, time.UTC),
+				Time:       time.Date(2025, 2, 20, 20, 28, 42, 99, time.UTC),
 				LoggerName: "bob",
-				Message:    "lob law",
+				Message:    "m1 tick chart",
 			},
 			fields: []zapcore.Field{
+				zap.String("System", "Monitor"),
 				zap.String("so", "passes"),
 				zap.Int("answer", 42),
 				zap.Float64("common_pie", 3.14),
@@ -85,8 +86,8 @@ func TestTextEncodeEntry(t *testing.T) {
 		NameKey:        "N",
 		CallerKey:      "C",
 		StacktraceKey:  "S",
-		EncodeLevel:    zapcore.LowercaseLevelEncoder,
-		EncodeTime:     zapcore.ISO8601TimeEncoder,
+		EncodeLevel:    zapcore.CapitalLevelEncoder,
+		EncodeTime:     zapcore.RFC3339TimeEncoder,
 		EncodeDuration: zapcore.SecondsDurationEncoder,
 		EncodeCaller:   zapcore.ShortCallerEncoder,
 	})
