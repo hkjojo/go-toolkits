@@ -53,8 +53,21 @@ func (l *logger) Log(level log.Level, kvs ...interface{}) error {
 	}
 
 	var data []zap.Field
-	for i := 0; i < len(kvs); i += 2 {
-		data = append(data, zap.Any(fmt.Sprint(kvs[i]), kvs[i+1]))
+
+	switch kvs[0].(type) {
+	case int32:
+		if len(kvs) == 2 {
+			data = append(data, zap.Any(tklog.TypeKey, kvs[0]))
+			data = append(data, zap.Any(tklog.SourceKey, kvs[1]))
+		} else {
+			for i := 0; i < len(kvs); i += 2 {
+				data = append(data, zap.Any(fmt.Sprint(kvs[i]), kvs[i+1]))
+			}
+		}
+	default:
+		for i := 0; i < len(kvs); i += 2 {
+			data = append(data, zap.Any(fmt.Sprint(kvs[i]), kvs[i+1]))
+		}
 	}
 
 	m := string(msg)
