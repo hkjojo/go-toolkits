@@ -17,11 +17,6 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-const (
-	TypeKey   = "Type"
-	SourceKey = "Source"
-)
-
 // Config ...
 type Config struct {
 	Path          string                `json:"path"`
