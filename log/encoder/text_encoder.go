@@ -87,9 +87,11 @@ func (enc *textEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (
 
 	if len(fields) >= 1 {
 		// log module
+		fmt.Println("append log type")
 		final.AppendString(fields[0].Key)
 		final.AppendString("\t\t\t")
 		// log source
+		fmt.Println("append log source")
 		final.AppendString(fields[0].String)
 		final.AppendString("\t\t\t\t")
 	}
