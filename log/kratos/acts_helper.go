@@ -9,20 +9,13 @@ import (
 )
 
 const (
-	TypeKey   = "Type"
-	SourceKey = "Source"
-)
-
-type LogType int32
-
-const (
-	LogTypeSystem        LogType = 0
-	LogTypeConfiguration LogType = 1
-	LogTypeLogin         LogType = 2
-	LogTypeTrade         LogType = 3
-	LogTypeAccount       LogType = 4
-	LogTypeAPI           LogType = 5
-	LogTypeReport        LogType = 6
+	ModuleSystem        = "System"
+	ModuleConfiguration = "Configuration"
+	ModuleLogin         = "Login"
+	ModuleTrade         = "Trade"
+	ModuleAccount       = "Account"
+	ModuleAPI           = "API"
+	ModuleReport        = "Report"
 )
 
 // ActsHelper is a logger helper.
@@ -43,33 +36,33 @@ func (h *ActsHelper) log(level log.Level, keyvals ...interface{}) {
 }
 
 // Debugw logs a message at debug level.
-func (h *ActsHelper) Debugw(logType LogType, source, msg string) {
+func (h *ActsHelper) Debugw(module, source, msg string) {
 	var keyvals []interface{}
-	h.log(log.LevelDebug, append(keyvals, append(h.kvs, logType, source, msgkey(msg))...)...)
+	h.log(log.LevelDebug, append(keyvals, append(h.kvs, module, source, msgkey(msg))...)...)
 }
 
 // Infow logs a message at info level.
-func (h *ActsHelper) Infow(logType LogType, source, msg string) {
+func (h *ActsHelper) Infow(module, source, msg string) {
 	var keyvals []interface{}
-	h.log(log.LevelInfo, append(keyvals, append(h.kvs, logType, source, msgkey(msg))...)...)
+	h.log(log.LevelInfo, append(keyvals, append(h.kvs, module, source, msgkey(msg))...)...)
 }
 
 // Warnw logs a message at warnf level.
-func (h *ActsHelper) Warnw(logType LogType, source, msg string) {
+func (h *ActsHelper) Warnw(module, source, msg string) {
 	var keyvals []interface{}
-	h.log(log.LevelWarn, append(keyvals, append(h.kvs, logType, source, msgkey(msg))...)...)
+	h.log(log.LevelWarn, append(keyvals, append(h.kvs, module, source, msgkey(msg))...)...)
 }
 
 // Errorw logs a message at error level.
-func (h *ActsHelper) Errorw(logType LogType, source, msg string) {
+func (h *ActsHelper) Errorw(module, source, msg string) {
 	var keyvals []interface{}
-	h.log(log.LevelError, append(keyvals, append(h.kvs, logType, source, msgkey(msg))...)...)
+	h.log(log.LevelError, append(keyvals, append(h.kvs, module, source, msgkey(msg))...)...)
 }
 
 // Fatalw logs a message at fatal level.
-func (h *ActsHelper) Fatalw(logType LogType, source, msg string) {
+func (h *ActsHelper) Fatalw(module, source, msg string) {
 	var keyvals []interface{}
-	h.log(log.LevelFatal, append(keyvals, append(h.kvs, logType, source, msgkey(msg))...)...)
+	h.log(log.LevelFatal, append(keyvals, append(h.kvs, module, source, msgkey(msg))...)...)
 	os.Exit(1)
 }
 

@@ -55,8 +55,7 @@ func TestTextEncodeEntry(t *testing.T) {
 				Message:    "m1 tick chart",
 			},
 			fields: []zapcore.Field{
-				zap.Int32("Type", 2),
-				zap.String("Source", "Monitor"),
+				zap.String("System", "Monitor"),
 				zap.String("so", "passes"),
 				zap.Int("answer", 42),
 				zap.Float64("common_pie", 3.14),

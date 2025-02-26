@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	textTimeFormat = "2006-01-02 15:04:05.000 GMT+0"
+	textTimeFormat = "2006-01-02T15:04:05.000Z"
 )
 
 var (
@@ -85,17 +85,13 @@ func (enc *textEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (
 
 	final.formatHeader(ent.Time, ent.Level, ent.Caller)
 
-	if len(fields) >= 2 {
-		// log type
-		if fields[0].Key == "Type" {
-			final.AppendInt32(int32(fields[0].Integer))
-			final.AppendString("\t\t\t")
-		}
+	if len(fields) >= 1 {
+		// log module
+		final.AppendString(fields[0].Key)
+		final.AppendString("\t\t\t")
 		// log source
-		if fields[1].Key == "Source" {
-			final.AppendString(fields[1].String)
-			final.AppendString("\t\t\t\t")
-		}
+		final.AppendString(fields[0].String)
+		final.AppendString("\t\t\t\t")
 	}
 
 	// message

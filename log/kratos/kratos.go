@@ -52,21 +52,8 @@ func (l *logger) Log(level log.Level, kvs ...interface{}) error {
 	}
 
 	var data []zap.Field
-
-	switch kvs[0].(type) {
-	case LogType:
-		if len(kvs) == 2 {
-			data = append(data, zap.Any(TypeKey, kvs[0]))
-			data = append(data, zap.Any(SourceKey, kvs[1]))
-		} else {
-			for i := 0; i < len(kvs); i += 2 {
-				data = append(data, zap.Any(fmt.Sprint(kvs[i]), kvs[i+1]))
-			}
-		}
-	default:
-		for i := 0; i < len(kvs); i += 2 {
-			data = append(data, zap.Any(fmt.Sprint(kvs[i]), kvs[i+1]))
-		}
+	for i := 0; i < len(kvs); i += 2 {
+		data = append(data, zap.Any(fmt.Sprint(kvs[i]), kvs[i+1]))
 	}
 
 	m := string(msg)
