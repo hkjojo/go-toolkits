@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	atl "github.com/hkjojo/go-toolkits/apptools"
+
 	"go.uber.org/zap/buffer"
 	"go.uber.org/zap/zapcore"
 )
@@ -85,14 +87,16 @@ func (enc *textEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (
 
 	final.formatHeader(ent.Time, ent.Level, ent.Caller)
 
-	if len(fields) >= 1 {
-		// log module
-		fmt.Println("append log type")
-		final.AppendString(fields[0].Key)
+	for _, field := range fields {
+		if field.Key == atl.MetaKey_ENV || field.Key == atl.MetaKey_HOSTNAME || field.Key == atl.MetaKey_SERVICE ||
+			field.Key == atl.Version || field.Key == atl.MetaKey_INSTANCE || field.Key == atl.MetaKey_CALLER {
+			continue
+		}
+		// append log module
+		final.AppendString(field.Key)
 		final.AppendString("\t\t\t")
-		// log source
-		fmt.Println("append log source")
-		final.AppendString(fields[0].String)
+		// append log source
+		final.AppendString(field.String)
 		final.AppendString("\t\t\t\t")
 	}
 
