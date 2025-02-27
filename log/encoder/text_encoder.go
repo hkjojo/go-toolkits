@@ -18,6 +18,13 @@ const (
 	textTimeFormat = "2006-01-02T15:04:05.000Z"
 )
 
+const (
+	SPLIT1 = "->"
+	SPLIT2 = "-->"
+	SPLIT3 = "--->"
+	SPLIT4 = "---->"
+)
+
 var (
 	_textPool = sync.Pool{New: func() interface{} {
 		return &textEncoder{}
@@ -69,13 +76,14 @@ func (enc *textEncoder) clone() *textEncoder {
 func (enc *textEncoder) formatHeader(t time.Time, level zapcore.Level) {
 	// time
 	enc.AppendString(t.UTC().Format(textTimeFormat))
-	enc.AppendString("\t")
+	enc.AppendString(SPLIT1)
 
 	// level
 	enc.EncodeLevel(level, enc)
-	enc.AppendString("\t\t")
+	enc.AppendString(SPLIT2)
 }
 
+// EncodeEntry time->level-->module--->source---->msg
 func (enc *textEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (*buffer.Buffer, error) {
 	final := enc.clone()
 
@@ -90,20 +98,20 @@ func (enc *textEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (
 		if field.Key == "msg" {
 			// append log module
 			final.AppendString("System")
-			final.AppendString("\t\t\t")
+			final.AppendString(SPLIT3)
 			// append log source
 			final.AppendString("Server")
-			final.AppendString("\t\t\t\t")
+			final.AppendString(SPLIT4)
 			// append msg
 			final.AppendString(field.String)
 			continue
 		}
 		// append log module
 		final.AppendString(field.Key)
-		final.AppendString("\t\t\t")
+		final.AppendString(SPLIT3)
 		// append log source
 		final.AppendString(field.String)
-		final.AppendString("\t\t\t\t")
+		final.AppendString(SPLIT4)
 	}
 
 	// message
