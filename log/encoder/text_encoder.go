@@ -66,7 +66,7 @@ func (enc *textEncoder) clone() *textEncoder {
 	return clone
 }
 
-func (enc *textEncoder) formatHeader(t time.Time, level zapcore.Level, caller zapcore.EntryCaller) {
+func (enc *textEncoder) formatHeader(t time.Time, level zapcore.Level) {
 	// time
 	enc.AppendString(t.UTC().Format(textTimeFormat))
 	enc.AppendString("\t")
@@ -74,22 +74,28 @@ func (enc *textEncoder) formatHeader(t time.Time, level zapcore.Level, caller za
 	// level
 	enc.EncodeLevel(level, enc)
 	enc.AppendString("\t\t")
-
-	/*// caller
-	if caller.Defined {
-		enc.EncodeCaller(caller, enc)
-		enc.AppendString("\t")
-	}*/
 }
 
 func (enc *textEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (*buffer.Buffer, error) {
 	final := enc.clone()
 
-	final.formatHeader(ent.Time, ent.Level, ent.Caller)
+	final.formatHeader(ent.Time, ent.Level)
 
 	for _, field := range fields {
 		if field.Key == atl.MetaKey_ENV || field.Key == atl.MetaKey_HOSTNAME || field.Key == atl.MetaKey_SERVICE ||
 			field.Key == atl.Version || field.Key == atl.MetaKey_INSTANCE || field.Key == atl.MetaKey_CALLER {
+			continue
+		}
+		// replace key when system log occur
+		if field.Key == "msg" {
+			// append log module
+			final.AppendString("System")
+			final.AppendString("\t\t\t")
+			// append log source
+			final.AppendString("Server")
+			final.AppendString("\t\t\t\t")
+			// append msg
+			final.AppendString(field.String)
 			continue
 		}
 		// append log module
