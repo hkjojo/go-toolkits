@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	pbc "git.gonit.codes/dealer/actshub/protocol/go/common/v1"
+
 	"golang.org/x/exp/mmap"
 )
 
@@ -18,30 +20,32 @@ const (
 	logTimeLayout = "2006-01-02T15:04:05.000Z"
 )
 
-type ListLogReq struct {
-	LogDir  string
-	From    string
-	To      string
-	Status  string
-	Module  string
-	Source  string
-	Message string
-}
-type ListLogRep struct {
-	Time    string
-	Status  string
-	Module  string
-	Source  string
-	Message string
-}
+/*
+	type ListLogReq struct {
+		LogDir  string
+		From    string
+		To      string
+		Status  string
+		Module  string
+		Source  string
+		Message string
+	}
 
+	type ListLogRep struct {
+		Time    string
+		Status  string
+		Module  string
+		Source  string
+		Message string
+	}
+*/
 type chunkRange struct {
 	Start int // include the start
 	End   int // exclude the end
 }
 
-func QueryLogs(req *ListLogReq) ([]*ListLogRep, error) {
-	mgr := newManager(req.LogDir)
+func QueryLogs(req *pbc.ListLogReq, dir string) (*pbc.ListLogRep, error) {
+	mgr := newManager(dir)
 	fromTime, toTime, err := parseTimeRange(req.From, req.To)
 	if err != nil {
 		return nil, fmt.Errorf("invalid time range: %v", err)
@@ -84,9 +88,9 @@ func (m *Manager) generateLogFilePaths(from, to time.Time) []string {
 	return paths
 }
 
-func (m *Manager) processFilesConcurrently(paths []string, req *ListLogReq) []*ListLogRep {
+func (m *Manager) processFilesConcurrently(paths []string, req *pbc.ListLogReq) []*pbc.ListLogRep_Log {
 	var wg sync.WaitGroup
-	results := make(chan []*ListLogRep)
+	results := make(chan []*pbc.ListLogRep_Log)
 
 	for _, path := range paths {
 		wg.Add(1)
@@ -103,7 +107,7 @@ func (m *Manager) processFilesConcurrently(paths []string, req *ListLogReq) []*L
 		close(results)
 	}()
 
-	var finalResults []*ListLogRep
+	var finalResults []*pbc.ListLogRep_Log
 	for res := range results {
 		finalResults = append(finalResults, res...)
 	}
@@ -111,7 +115,7 @@ func (m *Manager) processFilesConcurrently(paths []string, req *ListLogReq) []*L
 }
 
 // process single log file
-func (m *Manager) processLogFile(path string, req *ListLogReq) ([]*ListLogRep, error) {
+func (m *Manager) processLogFile(path string, req *pbc.ListLogReq) ([]*pbc.ListLogRep_Log, error) {
 	readerAt, err := mmap.Open(path)
 	if err != nil {
 		return nil, err
@@ -127,7 +131,7 @@ func (m *Manager) processLogFile(path string, req *ListLogReq) ([]*ListLogRep, e
 	chunks := splitDataToChunks(data, runtime.NumCPU()*2)
 
 	var wg sync.WaitGroup
-	resultChan := make(chan []*ListLogRep, len(chunks))
+	resultChan := make(chan []*pbc.ListLogRep_Log, len(chunks))
 
 	for _, chunk := range chunks {
 		wg.Add(1)
@@ -143,7 +147,7 @@ func (m *Manager) processLogFile(path string, req *ListLogReq) ([]*ListLogRep, e
 		close(resultChan)
 	}()
 
-	finalResults := make([]*ListLogRep, 0)
+	finalResults := make([]*pbc.ListLogRep_Log, 0)
 	for res := range resultChan {
 		finalResults = append(finalResults, res...)
 	}
@@ -224,7 +228,7 @@ func (m *Manager) getChunkTimeRange(data []byte, cr chunkRange) (from, to time.T
 	return from, to, false
 }
 
-func (m *Manager) processChunk(data []byte, cr chunkRange, req *ListLogReq) []*ListLogRep {
+func (m *Manager) processChunk(data []byte, cr chunkRange, req *pbc.ListLogReq) []*pbc.ListLogRep_Log {
 	defer func() {
 		if err := recover(); err != nil {
 		}
@@ -237,7 +241,7 @@ func (m *Manager) processChunk(data []byte, cr chunkRange, req *ListLogReq) []*L
 		return nil
 	}
 
-	var results []*ListLogRep
+	var results []*pbc.ListLogRep_Log
 
 	start := cr.Start
 	if cr.Start > 0 {
@@ -271,7 +275,7 @@ func (m *Manager) processChunk(data []byte, cr chunkRange, req *ListLogReq) []*L
 	return results
 }
 
-func parseLogLine(line string) (*ListLogRep, error) {
+func parseLogLine(line string) (*pbc.ListLogRep_Log, error) {
 	parts := strings.Split(line, "->")
 	if len(parts) != 5 {
 		return nil, errors.New("invalid log format")
@@ -281,7 +285,7 @@ func parseLogLine(line string) (*ListLogRep, error) {
 		parts[i] = strings.TrimRight(parts[i], "-")
 	}
 
-	return &ListLogRep{
+	return &pbc.ListLogRep_Log{
 		Time:    parts[0],
 		Status:  parts[1],
 		Module:  parts[2],
@@ -290,7 +294,7 @@ func parseLogLine(line string) (*ListLogRep, error) {
 	}, nil
 }
 
-func matchFilters(entry *ListLogRep, req *ListLogReq) bool {
+func matchFilters(entry *pbc.ListLogRep_Log, req *pbc.ListLogReq) bool {
 	logTime, err := time.Parse(logTimeLayout, entry.Time)
 	if err != nil {
 		return false
@@ -304,26 +308,26 @@ func matchFilters(entry *ListLogRep, req *ListLogReq) bool {
 		return false
 	}
 	// filter status
-	if req.Status != "" && req.Status != entry.Status {
+	if req.Status != nil && *req.Status != entry.Status {
 		return false
 	}
 	// filter module
-	if req.Module != "" && req.Module != entry.Module {
+	if req.Module != nil && *req.Module != entry.Module {
 		return false
 	}
 	// filter source
-	if req.Source != "" && req.Source != entry.Source {
+	if req.Source != nil && *req.Source != entry.Source {
 		return false
 	}
 	// filter message
-	if req.Message != "" && !strings.Contains(entry.Message, req.Message) {
+	if req.Message != nil && !strings.Contains(entry.Message, *req.Message) {
 		return false
 	}
 
 	return true
 }
 
-func (m *Manager) sortResults(results []*ListLogRep) []*ListLogRep {
+func (m *Manager) sortResults(results []*pbc.ListLogRep_Log) *pbc.ListLogRep {
 	type sortItem struct {
 		index      int
 		parsedTime time.Time
@@ -355,9 +359,9 @@ func (m *Manager) sortResults(results []*ListLogRep) []*ListLogRep {
 	})
 
 	// combine results
-	sorted := make([]*ListLogRep, len(results))
+	sorted := make([]*pbc.ListLogRep_Log, len(results))
 	for i, item := range items {
 		sorted[i] = results[item.index]
 	}
-	return sorted
+	return &pbc.ListLogRep{Logs: sorted}
 }
