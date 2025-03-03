@@ -20,25 +20,22 @@ const (
 	logTimeLayout = "2006-01-02T15:04:05.000Z"
 )
 
-/*
-	type ListLogReq struct {
-		LogDir  string
-		From    string
-		To      string
-		Status  string
-		Module  string
-		Source  string
-		Message string
-	}
+type Manager struct {
+	timeParser *timeParser
+	logDir     string
+}
 
-	type ListLogRep struct {
-		Time    string
-		Status  string
-		Module  string
-		Source  string
-		Message string
+type timeParser struct {
+	buf [24]byte
+}
+
+func newManager(logDir string) *Manager {
+	return &Manager{
+		timeParser: &timeParser{},
+		logDir:     logDir,
 	}
-*/
+}
+
 type chunkRange struct {
 	Start int // include the start
 	End   int // exclude the end
@@ -183,22 +180,6 @@ func splitDataToChunks(data []byte, chunkNum int) []chunkRange {
 	return chunks
 }
 
-type Manager struct {
-	timeParser *timeParser
-	logDir     string
-}
-
-type timeParser struct {
-	buf [24]byte
-}
-
-func newManager(logDir string) *Manager {
-	return &Manager{
-		timeParser: &timeParser{},
-		logDir:     logDir,
-	}
-}
-
 func (p *timeParser) Parse(b []byte) (time.Time, error) {
 	if len(b) < 24 {
 		return time.Time{}, fmt.Errorf("invalid time length")
@@ -277,7 +258,7 @@ func (m *Manager) processChunk(data []byte, cr chunkRange, req *pbc.ListLogReq) 
 
 func parseLogLine(line string) (*pbc.ListLogRep_Log, error) {
 	parts := strings.Split(line, "->")
-	if len(parts) != 5 {
+	if len(parts) < 5 {
 		return nil, errors.New("invalid log format")
 	}
 
