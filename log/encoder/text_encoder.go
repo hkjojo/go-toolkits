@@ -91,7 +91,7 @@ func (enc *textEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (
 
 	for _, field := range fields {
 		if field.Key == atl.MetaKey_ENV || field.Key == atl.MetaKey_HOSTNAME || field.Key == atl.MetaKey_SERVICE ||
-			field.Key == atl.Version || field.Key == atl.MetaKey_INSTANCE || field.Key == atl.MetaKey_CALLER {
+			field.Key == atl.MetaKey_VERSION || field.Key == atl.MetaKey_INSTANCE || field.Key == atl.MetaKey_CALLER {
 			continue
 		}
 		// replace key when system log occur
@@ -104,7 +104,7 @@ func (enc *textEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (
 			final.AppendString(SPLIT4)
 			// append msg
 			final.AppendString(field.String)
-			continue
+			break
 		}
 		// append log module
 		final.AppendString(field.Key)
@@ -112,16 +112,12 @@ func (enc *textEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (
 		// append log source
 		final.AppendString(field.String)
 		final.AppendString(SPLIT4)
+		break
 	}
 
 	// message
 	if final.MessageKey != "" {
 		final.AppendString(ent.Message)
-	}
-
-	if ent.Stack != "" {
-		final.AppendString("\n")
-		final.AppendString(ent.Stack)
 	}
 
 	final.AppendString("\n")
