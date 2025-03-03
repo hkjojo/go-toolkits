@@ -23,16 +23,19 @@ const (
 type Manager struct {
 	timeParser *timeParser
 	logDir     string
+	filePrefix string
 }
 
 type timeParser struct {
 	buf [24]byte
 }
 
-func newManager(logDir string) *Manager {
+func newManager(path string) *Manager {
+	index := strings.LastIndex(path, "/")
 	return &Manager{
 		timeParser: &timeParser{},
-		logDir:     logDir,
+		logDir:     path[:index],
+		filePrefix: path[index+1:] + ".",
 	}
 }
 
@@ -41,8 +44,8 @@ type chunkRange struct {
 	End   int // exclude the end
 }
 
-func QueryLogs(req *pbc.ListLogReq, dir string) (*pbc.ListLogRep, error) {
-	mgr := newManager(dir)
+func QueryLogs(req *pbc.ListLogReq, path string) (*pbc.ListLogRep, error) {
+	mgr := newManager(path)
 	fromTime, toTime, err := parseTimeRange(req.From, req.To)
 	if err != nil {
 		return nil, fmt.Errorf("invalid time range: %v", err)
@@ -75,7 +78,7 @@ func (m *Manager) generateLogFilePaths(from, to time.Time) []string {
 	var paths []string
 
 	for d := from; d.Before(to) || d.Equal(to); d = d.AddDate(0, 0, 1) {
-		filename := "history.log." + d.Format("20060102")
+		filename := m.filePrefix + d.Format("20060102")
 		path := filepath.Join(m.logDir, filename)
 
 		if _, err := os.Stat(path); err == nil {
