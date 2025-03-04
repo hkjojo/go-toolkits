@@ -221,7 +221,7 @@ func (m *Manager) processChunk(data []byte, cr chunkRange, req *pbc.ListLogReq) 
 	reqFrom, _ := time.Parse(logTimeLayout, req.From)
 	reqTo, _ := time.Parse(logTimeLayout, req.To)
 	chunkFrom, chunkTo, ok := m.getChunkTimeRange(data, cr)
-	if !ok || chunkFrom.After(reqTo) || chunkTo.Before(reqFrom) {
+	if ok && (chunkFrom.After(reqTo) || chunkTo.Before(reqFrom)) {
 		return nil
 	}
 
