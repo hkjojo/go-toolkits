@@ -1,8 +1,8 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 cloud.google.com/go v0.34.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7gZCb22OMCxBHrMx7a5I7Hp++hsVxbQ4BYO7hU=
-git.gonit.codes/dealer/actshub/protocol.git v0.0.0-20250301091009-b661908da305 h1:kt1KZlE3/yXus+ZMgWuzhOnR9qFumvEPmnrRgJH4wrI=
-git.gonit.codes/dealer/actshub/protocol.git v0.0.0-20250301091009-b661908da305/go.mod h1:SeiFH4ecT4/ltSzTOy3p8uKY8735nNJtcrRfagmByHs=
+git.gonit.codes/dealer/actshub/protocol.git v0.0.0-20250304015232-148cb4efc948 h1:IllAW5ABStD0DyEAKCvRQ9hn/8+BYJOHikKilfXSb0k=
+git.gonit.codes/dealer/actshub/protocol.git v0.0.0-20250304015232-148cb4efc948/go.mod h1:SeiFH4ecT4/ltSzTOy3p8uKY8735nNJtcrRfagmByHs=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/toml v1.2.1 h1:9F2/+DoOYIOksmaJFPw1tGFy1eDnIJXg+UHjuD8lTak=
 github.com/BurntSushi/toml v1.2.1/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbicEuybxQ=

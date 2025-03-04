@@ -4,7 +4,7 @@ go 1.23
 
 toolchain go1.23.2
 
-replace git.gonit.codes/dealer/actshub/protocol => git.gonit.codes/dealer/actshub/protocol.git v0.0.0-20250301091009-b661908da305
+replace git.gonit.codes/dealer/actshub/protocol => git.gonit.codes/dealer/actshub/protocol.git v0.0.0-20250304015232-148cb4efc948
 
 require (
 	github.com/Shopify/sarama v1.26.1
