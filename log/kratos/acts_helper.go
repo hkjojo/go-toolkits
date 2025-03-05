@@ -16,6 +16,7 @@ const (
 	ModuleAccount       = "Account"
 	ModuleAPI           = "API"
 	ModuleReport        = "Report"
+	ModuleQuote         = "Quote"
 )
 
 // ActsHelper is a logger helper.
