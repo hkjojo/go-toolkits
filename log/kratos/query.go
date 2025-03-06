@@ -16,9 +16,8 @@ import (
 	"golang.org/x/exp/mmap"
 )
 
-const (
-	logTimeLayout = "2006-01-02T15:04:05.000Z"
-)
+const logTimeLayout = "2006-01-02T15:04:05.000Z"
+const splitForm = "\t"
 
 type Manager struct {
 	timeParser *timeParser
@@ -200,8 +199,8 @@ func (m *Manager) getChunkTimeRange(data []byte, cr chunkRange) (from, to time.T
 	}
 
 	for i := cr.End - 1; i >= cr.Start; i-- {
-		if string(data[i-3:i]) == "Z->" && i-26 >= cr.Start {
-			if t, err := m.timeParser.Parse(data[i-26 : i-2]); err == nil {
+		if string(data[i-2:i]) == "Z\t" && i-25 >= cr.Start {
+			if t, err := m.timeParser.Parse(data[i-25 : i-1]); err == nil {
 				to = t
 				return from, to, valid
 			}
@@ -260,13 +259,9 @@ func (m *Manager) processChunk(data []byte, cr chunkRange, req *pbc.ListLogReq) 
 }
 
 func parseLogLine(line string) (*pbc.ListLogRep_Log, error) {
-	parts := strings.Split(line, "->")
+	parts := strings.Split(line, splitForm)
 	if len(parts) < 5 {
 		return nil, errors.New("invalid log format")
-	}
-
-	for i := range parts {
-		parts[i] = strings.TrimRight(parts[i], "-")
 	}
 
 	return &pbc.ListLogRep_Log{
