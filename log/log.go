@@ -6,11 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jinzhu/copier"
-
 	"github.com/hkjojo/go-toolkits/log/v2/encoder"
 	"github.com/hkjojo/go-toolkits/log/v2/hook"
-
+	"github.com/jinzhu/copier"
 	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -28,8 +26,8 @@ type Config struct {
 	DisableStdout bool                  `json:"disable_stdout"`
 	Compress      bool                  `json:"compress"`
 	Format        string                `json:"format"` // json/console/text
-	ForbitTime    bool                  `json:"forbit_time"`
-	ForbitLevel   bool                  `json:"forbit_level"`
+	ForbidTime    bool                  `json:"forbid_time"`
+	ForbidLevel   bool                  `json:"forbid_level"`
 	Caller        bool                  `json:"caller"`
 	Prefix        string                `json:"prefix"`
 	Kafka         *hook.KafkaConfig     `json:"kafka"`
@@ -127,14 +125,14 @@ func New(config *Config) (*Logger, error) {
 		}
 
 		if config.MaxSize != 0 {
-			hook := lumberjack.Logger{
+			h := lumberjack.Logger{
 				Filename:   config.Path,       // log path
 				MaxSize:    config.MaxSize,    // file max size：M
 				MaxBackups: config.MaxBackups, // max backup file num
 				MaxAge:     config.MaxAge,     // file age
 				Compress:   config.Compress,   // compress gz
 			}
-			hooks = append(hooks, zapcore.AddSync(&hook))
+			hooks = append(hooks, zapcore.AddSync(&h))
 		}
 
 		if config.RotateDay != 0 {
@@ -164,11 +162,11 @@ func New(config *Config) (*Logger, error) {
 		hooks = append(hooks, os.Stdout)
 	}
 
-	if config.ForbitTime {
+	if config.ForbidTime {
 		timeKey = ""
 	}
 
-	if config.ForbitLevel {
+	if config.ForbidLevel {
 		levelKey = ""
 	}
 
