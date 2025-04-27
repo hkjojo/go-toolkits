@@ -133,7 +133,7 @@ func (m *Manager) processLogFile(path string, req *pbc.ListLogReq, limit int32) 
 
 	var results []*pbc.ListLogRep_Log
 
-	for i, chunk := range chunks {
+	for _, chunk := range chunks {
 		if limit > 0 && total >= limit {
 			break
 		}
