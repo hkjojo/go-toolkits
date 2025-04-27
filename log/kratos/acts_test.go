@@ -1,9 +1,11 @@
 package kratos
 
 import (
+	pbc "git.gonit.codes/dealer/actshub/protocol/go/common/v1"
 	"github.com/hkjojo/go-toolkits/apptools"
 	tklog "github.com/hkjojo/go-toolkits/log/v2"
 	"testing"
+	"time"
 )
 
 func TestTextLog(t *testing.T) {
@@ -20,4 +22,40 @@ func TestTextLog(t *testing.T) {
 	finalLogger := apptools.WithMetaKeys(zLog)
 	testLogger := NewActsHelper(finalLogger)
 	testLogger.Infow("System", "DB", "this is a test")
+}
+
+func TestQueryLog(t *testing.T) {
+	//status := "INFO"
+	msg := "1633261"
+	startTime := time.Now()
+	resp, err := QueryLogs(&pbc.ListLogReq{
+		From: "2025-04-24T00:00:00.000Z",
+		To:   "2025-04-24T23:00:00.000Z",
+		//Status: &status,
+		Message: &msg,
+	}, "./history.log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log("elapsed:", time.Since(startTime).String())
+
+	t.Logf("count: %d", len(resp.Logs))
+}
+
+func TestQueryMore(t *testing.T) {
+	//status := "INFO"
+	msg := "1633261"
+	startTime := time.Now()
+	resp, err := QueryLogsConcurrently(&pbc.ListLogReq{
+		From: "2025-04-24T00:00:00.000Z",
+		To:   "2025-04-24T23:00:00.000Z",
+		//Status:  &status,
+		Message: &msg,
+	}, "./history.log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log("elapsed:", time.Since(startTime).String())
+
+	t.Logf("count: %d", len(resp.Logs))
 }

@@ -1,6 +1,7 @@
 package kratos
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -12,12 +13,15 @@ import (
 	"time"
 
 	pbc "git.gonit.codes/dealer/actshub/protocol/go/common/v1"
-
-	"golang.org/x/exp/mmap"
+	mp "github.com/edsrzf/mmap-go"
 )
 
+const logLimit = 10000
+const dataSize = 1024 * 1024 * 200
 const logTimeLayout = "2006-01-02T15:04:05.000Z"
 const splitForm = "\t"
+
+var total int32
 
 type Manager struct {
 	timeParser *timeParser
@@ -52,9 +56,9 @@ func QueryLogs(req *pbc.ListLogReq, path string) (*pbc.ListLogRep, error) {
 
 	filePaths := mgr.generateLogFilePaths(fromTime, toTime)
 
-	results := mgr.processFilesConcurrently(filePaths, req)
+	results := mgr.processFiles(filePaths, req, logLimit)
 
-	return mgr.sortResults(results), nil
+	return &pbc.ListLogRep{Logs: results}, nil
 }
 
 func parseTimeRange(fromStr, toStr string) (from, to time.Time, err error) {
@@ -87,71 +91,56 @@ func (m *Manager) generateLogFilePaths(from, to time.Time) []string {
 	return paths
 }
 
-func (m *Manager) processFilesConcurrently(paths []string, req *pbc.ListLogReq) []*pbc.ListLogRep_Log {
-	var wg sync.WaitGroup
-	results := make(chan []*pbc.ListLogRep_Log)
+func (m *Manager) processFiles(paths []string, req *pbc.ListLogReq, limit int32) []*pbc.ListLogRep_Log {
+	var finalResults []*pbc.ListLogRep_Log
 
 	for _, path := range paths {
-		wg.Add(1)
-		go func(p string) {
-			defer wg.Done()
-			if res, err := m.processLogFile(p, req); err == nil {
-				results <- res
-			}
-		}(path)
+		if limit > 0 && total >= limit {
+			break
+		}
+
+		results, err := m.processLogFile(path, req, limit)
+		if err != nil {
+			continue
+		}
+
+		finalResults = append(finalResults, results...)
 	}
 
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	var finalResults []*pbc.ListLogRep_Log
-	for res := range results {
-		finalResults = append(finalResults, res...)
-	}
 	return finalResults
 }
 
 // process single log file
-func (m *Manager) processLogFile(path string, req *pbc.ListLogReq) ([]*pbc.ListLogRep_Log, error) {
-	readerAt, err := mmap.Open(path)
+func (m *Manager) processLogFile(path string, req *pbc.ListLogReq, limit int32) ([]*pbc.ListLogRep_Log, error) {
+	f, err := os.OpenFile(path, os.O_RDWR, 0644)
 	if err != nil {
 		return nil, err
 	}
-	defer readerAt.Close()
+	defer f.Close()
 
-	data := make([]byte, readerAt.Len())
-	_, err = readerAt.ReadAt(data, 0)
+	data, err := mp.Map(f, mp.RDWR, 0)
 	if err != nil {
-		return nil, fmt.Errorf("error reading file: %v", err)
+		return nil, err
+	}
+	defer data.Unmap()
+
+	var chunkNum = 1
+	if len(data) > dataSize {
+		chunkNum = len(data) / dataSize
 	}
 
-	chunks := splitDataToChunks(data, runtime.NumCPU()*2)
+	chunks := splitDataToChunks(data, chunkNum)
 
-	var wg sync.WaitGroup
-	resultChan := make(chan []*pbc.ListLogRep_Log, len(chunks))
+	var results []*pbc.ListLogRep_Log
 
-	for _, chunk := range chunks {
-		wg.Add(1)
-		go func(c chunkRange) {
-			defer wg.Done()
-			results := m.processChunk(data, c, req)
-			resultChan <- results
-		}(chunk)
+	for i, chunk := range chunks {
+		if limit > 0 && total >= limit {
+			break
+		}
+		results = append(results, m.processChunk(data, chunk, req, limit)...)
 	}
 
-	go func() {
-		wg.Wait()
-		close(resultChan)
-	}()
-
-	finalResults := make([]*pbc.ListLogRep_Log, 0)
-	for res := range resultChan {
-		finalResults = append(finalResults, res...)
-	}
-
-	return finalResults, nil
+	return results, nil
 }
 
 // split single log data to chunks
@@ -211,7 +200,7 @@ func (m *Manager) getChunkTimeRange(data []byte, cr chunkRange) (from, to time.T
 	return from, to, false
 }
 
-func (m *Manager) processChunk(data []byte, cr chunkRange, req *pbc.ListLogReq) []*pbc.ListLogRep_Log {
+func (m *Manager) processChunk(data []byte, cr chunkRange, req *pbc.ListLogReq, limit int32) []*pbc.ListLogRep_Log {
 	defer func() {
 		if err := recover(); err != nil {
 		}
@@ -233,25 +222,54 @@ func (m *Manager) processChunk(data []byte, cr chunkRange, req *pbc.ListLogReq) 
 		}
 	}
 
-	end := cr.End
-	for i := start; i < end; i++ {
-		if data[i] == '\n' {
-			line := string(data[start:i])
-			start = i + 1
-
-			logEntry, err := parseLogLine(line)
-			if err == nil && matchFilters(logEntry, req) {
-				results = append(results, logEntry)
-			}
-		}
+	needMsgMatch := req.Message != nil
+	var msgPattern []byte
+	if needMsgMatch {
+		msgPattern = []byte(*req.Message)
 	}
 
-	// handle the last line
-	if start < end {
-		line := string(data[start:end])
-		logEntry, err := parseLogLine(line)
+	searchStart := start
+	for total < limit {
+		var lineData []byte
+		var lineStart, lineEnd int
+
+		if needMsgMatch && len(msgPattern) > 0 {
+			patternPos := bytes.Index(data[searchStart:cr.End], msgPattern)
+			if patternPos == -1 {
+				break
+			}
+
+			lineStart = searchStart + patternPos
+			for lineStart > searchStart && data[lineStart-1] != '\n' {
+				lineStart--
+			}
+			lineEnd = searchStart + patternPos
+			for lineEnd < cr.End && data[lineEnd] != '\n' {
+				lineEnd++
+			}
+
+			lineData = data[lineStart:lineEnd]
+			searchStart = lineEnd + 1
+		} else {
+			if start >= cr.End {
+				break
+			}
+
+			lineEnd = bytes.IndexByte(data[start:cr.End], '\n')
+			if lineEnd == -1 {
+				lineEnd = cr.End
+			} else {
+				lineEnd += start
+			}
+
+			lineData = data[start:lineEnd]
+			start = lineEnd + 1
+		}
+
+		logEntry, err := parseLogLine(string(lineData))
 		if err == nil && matchFilters(logEntry, req) {
 			results = append(results, logEntry)
+			total++
 		}
 	}
 
@@ -274,16 +292,7 @@ func parseLogLine(line string) (*pbc.ListLogRep_Log, error) {
 }
 
 func matchFilters(entry *pbc.ListLogRep_Log, req *pbc.ListLogReq) bool {
-	logTime, err := time.Parse(logTimeLayout, entry.Time)
-	if err != nil {
-		return false
-	}
-
-	reqFrom, _ := time.Parse(logTimeLayout, req.From)
-	reqTo, _ := time.Parse(logTimeLayout, req.To)
-
-	// filter time
-	if logTime.Before(reqFrom) || logTime.After(reqTo) {
+	if entry.Time < req.From || entry.Time > req.To {
 		return false
 	}
 	// filter status
