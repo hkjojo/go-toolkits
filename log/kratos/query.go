@@ -237,12 +237,6 @@ func (m *Manager) processChunk(data []byte, cr chunkRange, req *pbc.ListLogReq) 
 		}
 	}
 
-	/*needMsgMatch := req.Message != nil
-	var msgPattern []byte
-	if needMsgMatch {
-		msgPattern = []byte(*req.Message)
-	}*/
-
 	searchStart := start
 	for total < m.limit {
 		var lineData []byte

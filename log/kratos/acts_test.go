@@ -42,30 +42,3 @@ func TestQueryLog(t *testing.T) {
 
 	t.Logf("count: %d", len(resp.Logs))
 }
-
-func TestRsQueryLog(t *testing.T) {
-	/*err := os.Setenv("LD_LIBRARY_PATH", "./libs")
-	if err != nil {
-		return
-	}
-	for _, env := range os.Environ() {
-		fmt.Println(env)
-	}*/
-	msg := "1633261"
-	results, err := RsQueryLogs(&pbc.ListLogReq{
-		From: "2025-04-24T00:00:00.000Z",
-		To:   "2025-04-24T23:00:00.000Z",
-		//Status: &status,
-		Message: &msg,
-	}, "./")
-
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Logf("count: %d", len(results.GetLogs()))
-
-	for _, log := range results.Logs {
-		t.Logf("%+v", log)
-	}
-}
