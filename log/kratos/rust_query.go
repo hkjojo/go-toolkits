@@ -28,6 +28,7 @@ package kratos
 import "C"
 import (
 	"fmt"
+	pbc "git.gonit.codes/dealer/actshub/protocol/go/common/v1"
 	"unsafe"
 )
 
@@ -49,15 +50,15 @@ type QueryParams struct {
 	Message string
 }
 
-func RsQueryLogs(logDir string, params *QueryParams) ([]Log, error) {
+func RsQueryLogs(req *pbc.ListLogReq, logDir string) (*pbc.ListLogRep, error) {
 	cQuery := C.CListLogReq{
-		from:    strToC(params.From),
-		to:      strToC(params.To),
-		service: strToC(params.Service),
-		status:  strToC(params.Status),
-		module:  strToC(params.Module),
-		source:  strToC(params.Source),
-		message: strToC(params.Message),
+		from:    strToC(req.From),
+		to:      strToC(req.To),
+		service: strToC(*req.Service),
+		status:  strToC(*req.Status),
+		module:  strToC(*req.Module),
+		source:  strToC(*req.Source),
+		message: strToC(*req.Message),
 	}
 	defer freeCQuery(&cQuery)
 
@@ -127,20 +128,20 @@ func errorCodeToError(code C.int) error {
 	case -255:
 		return fmt.Errorf("internal rust panic")
 	default:
-		return fmt.Errorf("unknown error (code %d)", code)
+		return fmt.Errorf("unknown error (code %v)", code)
 	}
 }
 
-func convertResults(cResults *C.CLog, length int) []Log {
+func convertResults(cResults *C.CLog, length int) *pbc.ListLogRep {
 	if length == 0 || cResults == nil {
 		return nil
 	}
 
-	results := make([]Log, length)
+	results := make([]*pbc.ListLogRep_Log, length)
 	slice := (*[1 << 30]C.CLog)(unsafe.Pointer(cResults))[:length:length]
 
 	for i, cLog := range slice {
-		results[i] = Log{
+		results[i] = &pbc.ListLogRep_Log{
 			Time:    C.GoString(cLog.time),
 			Status:  C.GoString(cLog.status),
 			Module:  C.GoString(cLog.module),
@@ -151,5 +152,5 @@ func convertResults(cResults *C.CLog, length int) []Log {
 
 	C.free_logs(cResults, C.int(length))
 
-	return results
+	return &pbc.ListLogRep{Logs: results}
 }

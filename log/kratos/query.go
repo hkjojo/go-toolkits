@@ -24,22 +24,37 @@ const splitForm = "\t"
 var total int32
 
 type Manager struct {
-	timeParser *timeParser
-	logDir     string
-	filePrefix string
+	timeParser   *timeParser
+	logDir       string
+	filePrefix   string
+	needMsgMatch bool
+	msgPattern   []byte
+	limit        int32
 }
 
 type timeParser struct {
 	buf [24]byte
 }
 
-func newManager(path string) *Manager {
+func newManager(req *pbc.ListLogReq, path string, limit int32) *Manager {
 	index := strings.LastIndex(path, "/")
-	return &Manager{
+	mgr := &Manager{
 		timeParser: &timeParser{},
 		logDir:     path[:index],
 		filePrefix: path[index+1:] + ".",
+		limit:      logLimit,
 	}
+
+	if limit > 0 {
+		mgr.limit = limit
+	}
+
+	if req.Message != nil {
+		mgr.needMsgMatch = true
+		mgr.msgPattern = []byte(*req.Message)
+	}
+
+	return mgr
 }
 
 type chunkRange struct {
@@ -48,7 +63,7 @@ type chunkRange struct {
 }
 
 func QueryLogs(req *pbc.ListLogReq, path string) (*pbc.ListLogRep, error) {
-	mgr := newManager(path)
+	mgr := newManager(req, path, logLimit)
 	fromTime, toTime, err := parseTimeRange(req.From, req.To)
 	if err != nil {
 		return nil, fmt.Errorf("invalid time range: %v", err)
@@ -56,7 +71,7 @@ func QueryLogs(req *pbc.ListLogReq, path string) (*pbc.ListLogRep, error) {
 
 	filePaths := mgr.generateLogFilePaths(fromTime, toTime)
 
-	results := mgr.processFiles(filePaths, req, logLimit)
+	results := mgr.processFiles(filePaths, req)
 
 	return &pbc.ListLogRep{Logs: results}, nil
 }
@@ -91,15 +106,15 @@ func (m *Manager) generateLogFilePaths(from, to time.Time) []string {
 	return paths
 }
 
-func (m *Manager) processFiles(paths []string, req *pbc.ListLogReq, limit int32) []*pbc.ListLogRep_Log {
+func (m *Manager) processFiles(paths []string, req *pbc.ListLogReq) []*pbc.ListLogRep_Log {
 	var finalResults []*pbc.ListLogRep_Log
 
 	for _, path := range paths {
-		if limit > 0 && total >= limit {
+		if total >= m.limit {
 			break
 		}
 
-		results, err := m.processLogFile(path, req, limit)
+		results, err := m.processLogFile(path, req)
 		if err != nil {
 			continue
 		}
@@ -111,7 +126,7 @@ func (m *Manager) processFiles(paths []string, req *pbc.ListLogReq, limit int32)
 }
 
 // process single log file
-func (m *Manager) processLogFile(path string, req *pbc.ListLogReq, limit int32) ([]*pbc.ListLogRep_Log, error) {
+func (m *Manager) processLogFile(path string, req *pbc.ListLogReq) ([]*pbc.ListLogRep_Log, error) {
 	f, err := os.OpenFile(path, os.O_RDWR, 0644)
 	if err != nil {
 		return nil, err
@@ -134,10 +149,10 @@ func (m *Manager) processLogFile(path string, req *pbc.ListLogReq, limit int32) 
 	var results []*pbc.ListLogRep_Log
 
 	for _, chunk := range chunks {
-		if limit > 0 && total >= limit {
+		if total >= m.limit {
 			break
 		}
-		results = append(results, m.processChunk(data, chunk, req, limit)...)
+		results = append(results, m.processChunk(data, chunk, req)...)
 	}
 
 	return results, nil
@@ -200,7 +215,7 @@ func (m *Manager) getChunkTimeRange(data []byte, cr chunkRange) (from, to time.T
 	return from, to, false
 }
 
-func (m *Manager) processChunk(data []byte, cr chunkRange, req *pbc.ListLogReq, limit int32) []*pbc.ListLogRep_Log {
+func (m *Manager) processChunk(data []byte, cr chunkRange, req *pbc.ListLogReq) []*pbc.ListLogRep_Log {
 	defer func() {
 		if err := recover(); err != nil {
 		}
@@ -222,19 +237,19 @@ func (m *Manager) processChunk(data []byte, cr chunkRange, req *pbc.ListLogReq, 
 		}
 	}
 
-	needMsgMatch := req.Message != nil
+	/*needMsgMatch := req.Message != nil
 	var msgPattern []byte
 	if needMsgMatch {
 		msgPattern = []byte(*req.Message)
-	}
+	}*/
 
 	searchStart := start
-	for total < limit {
+	for total < m.limit {
 		var lineData []byte
 		var lineStart, lineEnd int
 
-		if needMsgMatch && len(msgPattern) > 0 {
-			patternPos := bytes.Index(data[searchStart:cr.End], msgPattern)
+		if m.needMsgMatch {
+			patternPos := bytes.Index(data[searchStart:cr.End], m.msgPattern)
 			if patternPos == -1 {
 				break
 			}
