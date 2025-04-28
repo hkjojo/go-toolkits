@@ -8,7 +8,6 @@ replace git.gonit.codes/dealer/actshub/protocol => git.gonit.codes/dealer/actshu
 
 require (
 	github.com/Shopify/sarama v1.26.1
-	github.com/cloudflare/ahocorasick v0.0.0-20240916140611-054963ec9396
 	github.com/edsrzf/mmap-go v1.2.0
 	github.com/go-kratos/kratos/v2 v2.5.3
 	github.com/hkjojo/go-toolkits/apptools v1.0.5

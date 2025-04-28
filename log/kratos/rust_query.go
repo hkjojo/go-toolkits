@@ -1,7 +1,7 @@
 package kratos
 
 /*
-   #cgo LDFLAGS: -L./libs -lcommon -lm -ldl -lpthread
+   #cgo LDFLAGS: -L${SRCDIR}/libs -lcommon -lm -ldl -lpthread
    #include <stdlib.h>
 
    typedef struct {
@@ -52,13 +52,13 @@ type QueryParams struct {
 
 func RsQueryLogs(req *pbc.ListLogReq, logDir string) (*pbc.ListLogRep, error) {
 	cQuery := C.CListLogReq{
-		from:    strToC(req.From),
-		to:      strToC(req.To),
-		service: strToC(*req.Service),
-		status:  strToC(*req.Status),
-		module:  strToC(*req.Module),
-		source:  strToC(*req.Source),
-		message: strToC(*req.Message),
+		from:    strToC(&req.From),
+		to:      strToC(&req.To),
+		service: strToC(req.Service),
+		status:  strToC(req.Status),
+		module:  strToC(req.Module),
+		source:  strToC(req.Source),
+		message: strToC(req.Message),
 	}
 	defer freeCQuery(&cQuery)
 
@@ -81,11 +81,11 @@ func RsQueryLogs(req *pbc.ListLogReq, logDir string) (*pbc.ListLogRep, error) {
 	return convertResults(cResults, int(cLen)), nil
 }
 
-func strToC(s string) *C.char {
-	if s == "" {
+func strToC(s *string) *C.char {
+	if s == nil {
 		return nil
 	}
-	cStr := C.CString(s)
+	cStr := C.CString(*s)
 	return cStr
 }
 

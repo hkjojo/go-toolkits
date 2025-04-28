@@ -57,13 +57,13 @@ func TestRsQueryLog(t *testing.T) {
 		To:   "2025-04-24T23:00:00.000Z",
 		//Status: &status,
 		Message: &msg,
-	}, "./history.log")
+	}, "./")
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	t.Logf("count: %d", len(results.Logs))
+	t.Logf("count: %d", len(results.GetLogs()))
 
 	for _, log := range results.Logs {
 		t.Logf("%+v", log)
