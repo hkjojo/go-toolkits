@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"time"
 
+	tlog "github.com/hkjojo/go-toolkits/log/v2"
 	"gorm.io/gorm/schema"
 
 	"github.com/doug-martin/goqu/v9"
@@ -52,6 +53,8 @@ type Config struct {
 	ConnMaxLifetime time.Duration
 	ConnMaxIdleTime time.Duration
 	Debug           bool
+	SlowThreshold   time.Duration
+	Logger          *tlog.Config
 }
 
 // Inject init db conns
@@ -96,6 +99,14 @@ func Open(cfg *Config, opts ...gorm.Option) (*DataBase, error) {
 	db, err := gorm.Open(dialector, opts...)
 	if err != nil {
 		return nil, err
+	}
+
+	if cfg.Logger != nil {
+		logger, err := NewGormLogger(cfg.Logger, cfg.SlowThreshold)
+		if err != nil {
+			return nil, err
+		}
+		db.Config.Logger = logger
 	}
 
 	if cfg.Debug {
