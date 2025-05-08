@@ -1,6 +1,7 @@
 package log
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -45,12 +46,12 @@ func (c *Config) Metric() *Config {
 	return &metricCfg
 }
 
-func (c *Config) Database() *Config {
+func (c *Config) Database(fileName string) *Config {
 	var dbCfg Config
 	if c != nil {
 		_ = copier.Copy(&dbCfg, c)
 	}
-	dbCfg.Path = "log/db.log"
+	dbCfg.Path = fmt.Sprintf("log/%s.log", fileName)
 	dbCfg.DisableStdout = true
 	return &dbCfg
 }
