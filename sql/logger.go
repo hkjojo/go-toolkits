@@ -3,6 +3,7 @@ package sql
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	tlog "github.com/hkjojo/go-toolkits/log/v2"
@@ -51,7 +52,7 @@ func (l *GormLogger) Info(ctx context.Context, msg string, data ...interface{}) 
 	if l.LogLevel < gormLogger.Info {
 		return
 	}
-	tlog.Infof(msg, data...)
+	l.log.Infow(fmt.Sprintf(msg, data...))
 }
 
 // Warn 实现日志接口的 Warn 方法
@@ -59,7 +60,7 @@ func (l *GormLogger) Warn(ctx context.Context, msg string, data ...interface{}) 
 	if l.LogLevel < gormLogger.Warn {
 		return
 	}
-	tlog.Warnf(msg, data...)
+	l.log.Warnw(fmt.Sprintf(msg, data...))
 }
 
 // Error 实现日志接口的 Error 方法
@@ -67,7 +68,7 @@ func (l *GormLogger) Error(ctx context.Context, msg string, data ...interface{})
 	if l.LogLevel < gormLogger.Error {
 		return
 	}
-	tlog.Errorf(msg, data...)
+	l.log.Errorw(fmt.Sprintf(msg, data...))
 }
 
 // Trace 实现日志接口的 Trace 方法，用于记录 SQL 执行情况
