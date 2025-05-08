@@ -45,6 +45,16 @@ func (c *Config) Metric() *Config {
 	return &metricCfg
 }
 
+func (c *Config) Database() *Config {
+	var dbCfg Config
+	if c != nil {
+		_ = copier.Copy(&dbCfg, c)
+	}
+	dbCfg.Path = "log/metric.log"
+	dbCfg.DisableStdout = true
+	return &dbCfg
+}
+
 // SugaredLogger ..
 type SugaredLogger struct {
 	*zap.SugaredLogger
