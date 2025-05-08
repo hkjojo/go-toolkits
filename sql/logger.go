@@ -35,12 +35,6 @@ func NewGormLogger(cfg *tlog.Config, slowThreshold time.Duration) (*GormLogger, 
 	}, nil
 }
 
-// WithSlowThreshold ...
-func (l *GormLogger) WithSlowThreshold(slowThreshold time.Duration) gormLogger.Interface {
-	l.SlowThreshold = slowThreshold
-	return l
-}
-
 // LogMode 实现 logger.Interface 接口，用于设置日志级别
 func (l *GormLogger) LogMode(level gormLogger.LogLevel) gormLogger.Interface {
 	l.LogLevel = level
