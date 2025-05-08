@@ -91,7 +91,7 @@ func (l *GormLogger) Trace(ctx context.Context, begin time.Time, fc func() (stri
 		l.log.Errorw("db error", "sql", sql, "rows", rows, "cost", elapsed, "err", err)
 	case l.LogLevel >= gormLogger.Warn && elapsed > l.SlowThreshold:
 		sql, rows := f()
-		l.log.Warnw("slow threshold", "sql", sql, "rows", rows, "cost", elapsed)
+		l.log.Warnw("slow sql", "sql", sql, "rows", rows, "cost", elapsed)
 	case l.LogLevel == gormLogger.Info:
 		sql, rows := f()
 		l.log.Infow("exec sql", "sql", sql, "rows", rows, "cost", elapsed)
