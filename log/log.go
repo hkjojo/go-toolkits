@@ -50,7 +50,7 @@ func (c *Config) Database() *Config {
 	if c != nil {
 		_ = copier.Copy(&dbCfg, c)
 	}
-	dbCfg.Path = "log/metric.log"
+	dbCfg.Path = "log/db.log"
 	dbCfg.DisableStdout = true
 	return &dbCfg
 }
