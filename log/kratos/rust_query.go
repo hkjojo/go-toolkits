@@ -1,7 +1,9 @@
 package kratos
 
 /*
-   #cgo LDFLAGS: -L${SRCDIR}/libs -lcommon -lm -ldl -lpthread
+   #cgo linux LDFLAGS: -L./libs/linux -lcommon -lm -ldl -lpthread
+   #cgo darwin LDFLAGS: -L./libs/darwin -lcommon
+
    #include <stdlib.h>
 
    typedef struct {

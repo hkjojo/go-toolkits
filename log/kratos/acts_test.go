@@ -52,6 +52,8 @@ func TestRsQueryLog(t *testing.T) {
 		fmt.Println(env)
 	}*/
 	msg := "1633261"
+	startTime := time.Now()
+
 	results, err := RsQueryLogs(&pbc.ListLogReq{
 		From: "2025-04-24T00:00:00.000Z",
 		To:   "2025-04-24T23:00:00.000Z",
@@ -62,6 +64,7 @@ func TestRsQueryLog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Log("elapsed:", time.Since(startTime).String())
 
 	t.Logf("count: %d", len(results.GetLogs()))
 
