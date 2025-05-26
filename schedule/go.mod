@@ -1,4 +1,4 @@
-module github.com/hkjojo/go-toolkits/log
+module github.com/hkjojo/go-toolkits/schedule
 
 go 1.23.2
 
@@ -8,6 +8,7 @@ require (
 	github.com/go-kratos/kratos/v2 v2.8.4
 	github.com/hkjojo/go-toolkits/log/v2 v2.2.3-0.20250428102002-2b3a6106536b
 	github.com/robfig/cron/v3 v3.0.1
+	github.com/shirou/gopsutil/v3 v3.23.6
 )
 
 require (
@@ -26,6 +27,7 @@ require (
 	github.com/edsrzf/mmap-go v1.2.0 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
+	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/gops v0.3.27 // indirect
 	github.com/google/pprof v0.0.0-20210423192551-a2663126120b // indirect
@@ -38,12 +40,18 @@ require (
 	github.com/klauspost/compress v1.16.7 // indirect
 	github.com/lestrrat-go/file-rotatelogs v2.2.0+incompatible // indirect
 	github.com/lestrrat-go/strftime v0.0.0-20190725011945-5c849dd2c51d // indirect
+	github.com/lufia/plan9stats v0.0.0-20230326075908-cb1d2100619a // indirect
 	github.com/pierrec/lz4 v2.5.2+incompatible // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/power-devops/perfstat v0.0.0-20221212215047-62379fc7944b // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
+	github.com/shoenig/go-m1cpu v0.1.6 // indirect
+	github.com/tklauser/go-sysconf v0.3.11 // indirect
+	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/urfave/cli/v2 v2.23.5 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
+	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	go.opentelemetry.io/otel v1.26.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.26.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.26.0 // indirect
