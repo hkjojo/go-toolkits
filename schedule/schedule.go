@@ -30,12 +30,12 @@ func NewScheduler(loc *time.Location, logger log.Logger) *Scheduler {
 
 type ScheduleTask struct {
 	Name string
-	cron string
+	Cron string
 	Task Task
 }
 
 func (s *Scheduler) AddTask(t *ScheduleTask) error {
-	_, err := s.cron.AddFunc(t.cron, func() {
+	_, err := s.cron.AddFunc(t.Cron, func() {
 		defer func() {
 			if r := recover(); r != nil {
 				s.log.Errorw(logtos.ModuleSystem, MonitorSource, t.Name+" task panic recovered")
