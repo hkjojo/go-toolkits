@@ -88,7 +88,7 @@ func (s *SystemMonitor) Execute(ctx context.Context, logger *logtos.ActsHelper) 
 		logger.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("get cpu usage failed, %s", err))
 		return err
 	}
-	logger.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("cpu_usage: %.2f%", cpuUsage))
+	logger.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("cpu_usage: %.2f%%", cpuUsage))
 	// mem
 	s.mm.getMemStats(logger)
 	// disk

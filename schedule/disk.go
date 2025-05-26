@@ -38,8 +38,8 @@ func (m *DiskMonitor) collectDiskStats(log *logtos.ActsHelper) error {
 		log.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("disk_io, %s: %s", name, formatBytes(stat)))
 	}
 
-	log.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("total: %s, free: %s, disk_usage: %.2f%",
-		formatBytes(usage.Total), formatBytes(usage.Free), usage.UsedPercent))
+	log.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("disk_usage: %.2f%%, total: %s, free: %s, ",
+		usage.UsedPercent, formatBytes(usage.Total), formatBytes(usage.Free)))
 
 	return nil
 }
