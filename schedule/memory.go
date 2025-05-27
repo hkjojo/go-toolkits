@@ -32,6 +32,21 @@ func formatBytes(b uint64) string {
 	}
 }
 
+func formatByteSpeed(b uint64, deltaSec float64) string {
+	switch {
+	case b >= TB:
+		return fmt.Sprintf("%.2f TB/s", float64(b)/TB/deltaSec)
+	case b >= GB:
+		return fmt.Sprintf("%.2f GB/s", float64(b)/GB/deltaSec)
+	case b >= MB:
+		return fmt.Sprintf("%.2f MB/s", float64(b)/MB/deltaSec)
+	case b >= KB:
+		return fmt.Sprintf("%.2f KB/s", float64(b)/KB/deltaSec)
+	default:
+		return fmt.Sprintf("%.2f B/s", float64(b)/deltaSec)
+	}
+}
+
 type MemoryMonitor struct {
 }
 
