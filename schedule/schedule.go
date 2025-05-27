@@ -29,24 +29,25 @@ func NewScheduler(loc *time.Location, logger log.Logger) *Scheduler {
 }
 
 type ScheduleTask struct {
-	Name string
-	Cron string
-	Task Task
+	Name    string
+	Cron    string
+	CtxTime time.Duration
+	Task    Task
 }
 
 func (s *Scheduler) AddTask(t *ScheduleTask) error {
 	_, err := s.cron.AddFunc(t.Cron, func() {
 		defer func() {
 			if r := recover(); r != nil {
-				s.log.Errorw(logtos.ModuleSystem, MonitorSource, t.Name+" task panic recovered")
+				s.log.Errorw(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("%s task panic recovered", t.Name))
 			}
 		}()
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		ctx, cancel := context.WithTimeout(context.Background(), t.CtxTime)
 		defer cancel()
 
 		if err := t.Task.Execute(ctx, s.log); err != nil {
-			s.log.Errorw(logtos.ModuleSystem, MonitorSource, t.Name+" task execution failed")
+			s.log.Errorw(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("%s task execution failed", t.Name))
 		}
 	})
 	return err
