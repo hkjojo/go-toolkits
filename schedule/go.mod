@@ -1,6 +1,6 @@
 module github.com/hkjojo/go-toolkits/schedule
 
-go 1.23.2
+go 1.23.1
 
 replace git.gonit.codes/dealer/actshub/protocol => git.gonit.codes/dealer/actshub/protocol.git v0.0.0-20250424020936-b4880804d5dc
 

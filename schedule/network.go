@@ -43,7 +43,7 @@ func (m *NetworkMonitor) collectNetworkStats(log *logtos.ActsHelper) error {
 			}
 		}
 
-		log.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("net_sent: %s , %s, net_recv: %s , %s",
+		log.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("net_sent: %s, %s, net_recv: %s, %s",
 			formatByteSpeed(sent, deltaSec), formatBytes(sent), formatByteSpeed(recv, deltaSec), formatBytes(recv)))
 	}
 	m.prevNetStats = netStats
