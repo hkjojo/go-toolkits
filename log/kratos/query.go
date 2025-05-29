@@ -72,7 +72,7 @@ func QueryLogs(req *pbc.ListLogReq, path string) (*pbc.ListLogRep, error) {
 	}
 
 	filePaths := mgr.generateLogFilePaths(fromTime, toTime)
-
+	log.Infow("file paths", "filePaths", filePaths)
 	results, err := mgr.processFiles(filePaths, req)
 	if err != nil {
 		return nil, err
@@ -116,6 +116,7 @@ func (m *Manager) processFiles(paths []string, req *pbc.ListLogReq) ([]*pbc.List
 
 	for _, path := range paths {
 		if total >= m.limit {
+			log.Infow("log limit reached", "path", path)
 			break
 		}
 
