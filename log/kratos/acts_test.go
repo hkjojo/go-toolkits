@@ -27,13 +27,13 @@ func TestTextLog(t *testing.T) {
 
 func TestQueryLog(t *testing.T) {
 	//status := "INFO"
-	msg := "1633261"
+	//msg := "1633261"
 	startTime := time.Now()
 	resp, err := QueryLogs(&pbc.ListLogReq{
-		From: "2025-04-24T00:00:00.000Z",
-		To:   "2025-04-24T23:00:00.000Z",
+		From: "2025-05-27T00:00:00.000Z",
+		To:   "2025-05-27T23:00:00.000Z",
 		//Status: &status,
-		Message: &msg,
+		//Message: &msg,
 	}, "./history.log")
 	if err != nil {
 		t.Fatal(err)
@@ -41,4 +41,7 @@ func TestQueryLog(t *testing.T) {
 	t.Log("elapsed:", time.Since(startTime).String())
 
 	t.Logf("count: %d", len(resp.Logs))
+	/*for _, re := range resp.Logs {
+		t.Logf("%+v", re)
+	}*/
 }

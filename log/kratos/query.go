@@ -71,7 +71,10 @@ func QueryLogs(req *pbc.ListLogReq, path string) (*pbc.ListLogRep, error) {
 
 	filePaths := mgr.generateLogFilePaths(fromTime, toTime)
 
-	results := mgr.processFiles(filePaths, req)
+	results, err := mgr.processFiles(filePaths, req)
+	if err != nil {
+		return nil, err
+	}
 
 	return &pbc.ListLogRep{Logs: results}, nil
 }
@@ -106,7 +109,7 @@ func (m *Manager) generateLogFilePaths(from, to time.Time) []string {
 	return paths
 }
 
-func (m *Manager) processFiles(paths []string, req *pbc.ListLogReq) []*pbc.ListLogRep_Log {
+func (m *Manager) processFiles(paths []string, req *pbc.ListLogReq) ([]*pbc.ListLogRep_Log, error) {
 	var finalResults []*pbc.ListLogRep_Log
 
 	for _, path := range paths {
@@ -116,13 +119,13 @@ func (m *Manager) processFiles(paths []string, req *pbc.ListLogReq) []*pbc.ListL
 
 		results, err := m.processLogFile(path, req)
 		if err != nil {
-			continue
+			return nil, err
 		}
 
 		finalResults = append(finalResults, results...)
 	}
 
-	return finalResults
+	return finalResults, nil
 }
 
 // process single log file
