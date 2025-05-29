@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/hkjojo/go-toolkits/log/v2"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -63,6 +64,7 @@ type chunkRange struct {
 }
 
 func QueryLogs(req *pbc.ListLogReq, path string) (*pbc.ListLogRep, error) {
+	log.Infow("req info", "path", path, "req", req)
 	mgr := newManager(req, path, logLimit)
 	fromTime, toTime, err := parseTimeRange(req.From, req.To)
 	if err != nil {
@@ -130,6 +132,7 @@ func (m *Manager) processFiles(paths []string, req *pbc.ListLogReq) ([]*pbc.List
 
 // process single log file
 func (m *Manager) processLogFile(path string, req *pbc.ListLogReq) ([]*pbc.ListLogRep_Log, error) {
+	log.Infow("process file info", "path", path, "req", req)
 	f, err := os.OpenFile(path, os.O_RDWR, 0644)
 	if err != nil {
 		return nil, err
