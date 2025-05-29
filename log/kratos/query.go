@@ -54,6 +54,7 @@ func newManager(req *pbc.ListLogReq, path string, limit int32) *Manager {
 		mgr.needMsgMatch = true
 		mgr.msgPattern = []byte(*req.Message)
 	}
+	total = 0
 
 	return mgr
 }
@@ -64,8 +65,8 @@ type chunkRange struct {
 }
 
 func QueryLogs(req *pbc.ListLogReq, path string) (*pbc.ListLogRep, error) {
-	log.Infow("req info", "path", path, "req", req)
 	mgr := newManager(req, path, logLimit)
+	log.Infow("req info", "path", path, "total", total, "req", req)
 	fromTime, toTime, err := parseTimeRange(req.From, req.To)
 	if err != nil {
 		return nil, fmt.Errorf("invalid time range: %v", err)
@@ -116,7 +117,7 @@ func (m *Manager) processFiles(paths []string, req *pbc.ListLogReq) ([]*pbc.List
 
 	for _, path := range paths {
 		if total >= m.limit {
-			log.Infow("log limit reached", "path", path)
+			log.Infow("log limit reached", "path", path, "total", total)
 			break
 		}
 
@@ -133,7 +134,6 @@ func (m *Manager) processFiles(paths []string, req *pbc.ListLogReq) ([]*pbc.List
 
 // process single log file
 func (m *Manager) processLogFile(path string, req *pbc.ListLogReq) ([]*pbc.ListLogRep_Log, error) {
-	log.Infow("process file info", "path", path, "req", req)
 	f, err := os.OpenFile(path, os.O_RDWR, 0644)
 	if err != nil {
 		return nil, err
