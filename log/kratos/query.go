@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/hkjojo/go-toolkits/log/v2"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -66,14 +65,12 @@ type chunkRange struct {
 
 func QueryLogs(req *pbc.ListLogReq, path string) (*pbc.ListLogRep, error) {
 	mgr := newManager(req, path, logLimit)
-	log.Infow("req info", "path", path, "total", total, "req", req)
 	fromTime, toTime, err := parseTimeRange(req.From, req.To)
 	if err != nil {
 		return nil, fmt.Errorf("invalid time range: %v", err)
 	}
 
 	filePaths := mgr.generateLogFilePaths(fromTime, toTime)
-	log.Infow("file paths", "filePaths", filePaths)
 	results, err := mgr.processFiles(filePaths, req)
 	if err != nil {
 		return nil, err
@@ -117,7 +114,6 @@ func (m *Manager) processFiles(paths []string, req *pbc.ListLogReq) ([]*pbc.List
 
 	for _, path := range paths {
 		if total >= m.limit {
-			log.Infow("log limit reached", "path", path, "total", total)
 			break
 		}
 
