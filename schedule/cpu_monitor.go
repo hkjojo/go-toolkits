@@ -2,6 +2,7 @@ package schedule
 
 import (
 	"fmt"
+	"github.com/go-kratos/kratos/v2/log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -58,18 +59,38 @@ func NewCPUMonitor() (*CPUMonitor, error) {
 		m.lastTotalUsage = uint64(percent[0])
 	}
 
+	log.Infow("cpu monitor", "isContainer", m.isContainer, "cgroupVersion", m.cgroupVersion, "cpuLimitCores",
+		m.cpuLimitCores)
+
 	return m, nil
 }
 
-func (cm *CPUMonitor) safeGetUsage() (float64, error) {
-	usage, err := cm.GetUsage()
+func (cm *CPUMonitor) safeGetUsage() (float64, float64, error) {
+	/*usage, err := cm.GetUsage()
 	if err != nil && cm.isContainer {
 		// 尝试回退到宿主机的统计方式
 		if hostUsage, hostErr := cpu.Percent(0, false); hostErr == nil {
 			return hostUsage[0], nil
 		}
 	}
-	return usage, err
+	return usage, err*/
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	now := time.Now()
+	interval := now.Sub(cm.lastTime).Seconds()
+
+	containerUsage, err := cm.getContainerUsage(now, interval)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	hostUsage, err := cm.getHostUsage(now, interval)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return containerUsage, hostUsage, nil
 }
 
 func (cm *CPUMonitor) GetUsage() (float64, error) {

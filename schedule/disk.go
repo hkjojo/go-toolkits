@@ -9,14 +9,14 @@ import (
 )
 
 type DiskMonitor struct {
-	path          string
+	path          []string
 	prevTime      time.Time
 	prevDiskStats map[string]disk.IOCountersStat
 }
 
-func NewDiskMonitor() *DiskMonitor {
+func NewDiskMonitor(paths []string) *DiskMonitor {
 	return &DiskMonitor{
-		path:          "./",
+		path:          paths,
 		prevDiskStats: make(map[string]disk.IOCountersStat),
 	}
 }
@@ -28,9 +28,13 @@ func (m *DiskMonitor) collectDiskStats(log *logtos.ActsHelper) error {
 		m.prevTime = currentTime
 	}()
 
-	usage, err := disk.Usage(m.path)
-	if err != nil {
-		return err
+	for _, path := range m.path {
+		usage, err := disk.Usage(path)
+		if err != nil {
+			return err
+		}
+		log.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("disk_usage, %s: %.2f%%, total: %s, free: %s",
+			path, usage.UsedPercent, formatBytes(usage.Total), formatBytes(usage.Free)))
 	}
 
 	diskIO, _ := disk.IOCounters()
@@ -47,9 +51,6 @@ func (m *DiskMonitor) collectDiskStats(log *logtos.ActsHelper) error {
 			log.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("%s: %s, %s", name, formatByteSpeed(stat, deltaSeconds), formatBytes(stat)))
 		}
 	}
-
-	log.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("disk_usage: %.2f%%, total: %s, free: %s",
-		usage.UsedPercent, formatBytes(usage.Total), formatBytes(usage.Free)))
 
 	return nil
 }

@@ -68,7 +68,7 @@ type SystemMonitor struct {
 	nm *NetworkMonitor
 }
 
-func NewSystemMonitor() (*SystemMonitor, error) {
+func NewSystemMonitor(path []string) (*SystemMonitor, error) {
 	cpuMonitor, err := NewCPUMonitor()
 	if err != nil {
 		return nil, err
@@ -77,21 +77,22 @@ func NewSystemMonitor() (*SystemMonitor, error) {
 	return &SystemMonitor{
 		cm: cpuMonitor,
 		mm: NewMemoryMonitor(),
-		dm: NewDiskMonitor(),
+		dm: NewDiskMonitor(path),
 		nm: NewNetworkMonitor(),
 	}, nil
 }
 
 func (s *SystemMonitor) Execute(ctx context.Context, logger *logtos.ActsHelper) error {
 	// cpu
-	cpuUsage, err := s.cm.safeGetUsage()
+	container, host, err := s.cm.safeGetUsage()
 	if err != nil {
 		logger.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("get cpu usage failed, %s", err))
 		return err
 	}
-	logger.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("cpu_usage: %.2f%%", cpuUsage))
+	logger.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("container_cpu_usage: %.2f%%, "+
+		"host_cpu_usage: %.2f%%", container, host))
 	// mem
-	s.mm.getMemStats(logger)
+	s.mm.collectMemStats(logger)
 	// disk
 	err = s.dm.collectDiskStats(logger)
 	if err != nil {

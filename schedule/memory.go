@@ -54,14 +54,16 @@ func NewMemoryMonitor() *MemoryMonitor {
 	return &MemoryMonitor{}
 }
 
-func (m *MemoryMonitor) getMemStats(log *logtos.ActsHelper) {
+func (m *MemoryMonitor) collectMemStats(log *logtos.ActsHelper) {
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
-	alloc := formatBytes(memStats.Alloc) //当前堆对象分配的内存
-	sys := formatBytes(memStats.Sys)     //从操作系统获得的总内存
-	// formatBytes(memStats.HeapAlloc)     堆上分配且仍在使用的内存
+	alloc := formatBytes(memStats.Alloc)         //当前堆对象分配的内存
+	sys := formatBytes(memStats.Sys)             //从操作系统获得的总内存
+	heapAlloc := formatBytes(memStats.HeapAlloc) // 堆上分配且仍在使用的内存
+	totalAlloc := formatBytes(memStats.TotalAlloc)
 
-	log.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("mem_usage, alloc: %s, sys: %s", alloc, sys))
+	log.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("mem_usage, alloc: %s, sys: %s, heap_alloc: %s, "+
+		"total_alloc: %s", alloc, sys, heapAlloc, totalAlloc))
 }
 
 func showContainerLimitComparison(used, limit string) {
