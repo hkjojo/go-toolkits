@@ -2,7 +2,6 @@ package schedule
 
 import (
 	"fmt"
-	"github.com/go-kratos/kratos/v2/log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -58,9 +57,8 @@ func NewCPUMonitor() (*CPUMonitor, error) {
 		}
 		m.lastTotalUsage = uint64(percent[0])
 	}
-
-	log.Infow("cpu monitor", "isContainer", m.isContainer, "cgroupVersion", m.cgroupVersion, "cpuLimitCores",
-		m.cpuLimitCores)
+	fmt.Printf("cpu monitor info, isContainer: %t, cgroupVersion: %d, cpuLimitCores: %f\n", m.isContainer,
+		m.cgroupVersion, m.cpuLimitCores)
 
 	return m, nil
 }

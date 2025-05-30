@@ -68,7 +68,7 @@ type SystemMonitor struct {
 	nm *NetworkMonitor
 }
 
-func NewSystemMonitor(path []string) (*SystemMonitor, error) {
+func NewSystemMonitor(ioPath, path []string) (*SystemMonitor, error) {
 	cpuMonitor, err := NewCPUMonitor()
 	if err != nil {
 		return nil, err
@@ -77,7 +77,7 @@ func NewSystemMonitor(path []string) (*SystemMonitor, error) {
 	return &SystemMonitor{
 		cm: cpuMonitor,
 		mm: NewMemoryMonitor(),
-		dm: NewDiskMonitor(path),
+		dm: NewDiskMonitor(ioPath, path),
 		nm: NewNetworkMonitor(),
 	}, nil
 }

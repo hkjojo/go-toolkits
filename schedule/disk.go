@@ -10,12 +10,14 @@ import (
 
 type DiskMonitor struct {
 	path          []string
+	ioPath        []string
 	prevTime      time.Time
 	prevDiskStats map[string]disk.IOCountersStat
 }
 
-func NewDiskMonitor(paths []string) *DiskMonitor {
+func NewDiskMonitor(ioPath, paths []string) *DiskMonitor {
 	return &DiskMonitor{
+		ioPath:        ioPath,
 		path:          paths,
 		prevDiskStats: make(map[string]disk.IOCountersStat),
 	}
@@ -37,7 +39,7 @@ func (m *DiskMonitor) collectDiskStats(log *logtos.ActsHelper) error {
 			path, usage.UsedPercent, formatBytes(usage.Total), formatBytes(usage.Free)))
 	}
 
-	diskIO, _ := disk.IOCounters()
+	diskIO, _ := disk.IOCounters(m.ioPath...)
 	ioStats := make(map[string]uint64)
 	if deltaSeconds > 0 {
 		for name, current := range diskIO {
