@@ -44,7 +44,7 @@ func (m *DiskMonitor) collectDiskStats(log *logtos.ActsHelper) error {
 	m.used = diskUsed
 	m.total = diskTotal
 	log.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("disk_usage: %.2f%%, used: %s, total: %s",
-		float64(diskUsed)/float64(diskTotal), formatBytes(diskUsed), formatBytes(diskTotal)))
+		float64(diskUsed*100)/float64(diskTotal), formatBytes(diskUsed), formatBytes(diskTotal)))
 
 	diskIO, _ := disk.IOCounters()
 	var ioRead, ioWrite uint64

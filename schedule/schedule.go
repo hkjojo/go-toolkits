@@ -101,7 +101,7 @@ func (s *SystemMonitor) Execute(ctx context.Context, logger *logtos.ActsHelper) 
 	s.mm.used = memUsed
 	s.mm.total = memLimit
 	logger.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("mem_usage: %.2f%%, mem_used: %s, mem_limit: %s",
-		float64(memUsed)/float64(memLimit), formatBytes(memUsed), formatBytes(memLimit)))
+		float64(memUsed*100)/float64(memLimit), formatBytes(memUsed), formatBytes(memLimit)))
 
 	// disk
 	err = s.dm.collectDiskStats(logger)
