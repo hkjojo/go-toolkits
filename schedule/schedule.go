@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	pbc "git.gonit.codes/dealer/actshub/protocol/go/common/v1"
+
 	"github.com/go-kratos/kratos/v2/log"
 	logtos "github.com/hkjojo/go-toolkits/log/v2/kratos"
 	"github.com/robfig/cron/v3"
@@ -88,6 +90,7 @@ func (s *SystemMonitor) Execute(ctx context.Context, logger *logtos.ActsHelper) 
 	if err != nil {
 		logger.Errorw(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("collect cpu_usage failed, %s", err))
 	}
+	s.cm.lastUsage = cpuUsage
 	logger.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("cpu_usage: %.2f%%", cpuUsage))
 
 	// mem
@@ -95,7 +98,9 @@ func (s *SystemMonitor) Execute(ctx context.Context, logger *logtos.ActsHelper) 
 	if err != nil {
 		logger.Errorw(logtos.ModuleSystem, MonitorSource, "collect mem stats failed")
 	}
-	log.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("mem_usage: %.2f%%, mem_used: %s, mem_limit: %s",
+	s.mm.used = memUsed
+	s.mm.total = memLimit
+	logger.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("mem_usage: %.2f%%, mem_used: %s, mem_limit: %s",
 		float64(memUsed)/float64(memLimit), formatBytes(memUsed), formatBytes(memLimit)))
 
 	// disk
@@ -111,4 +116,18 @@ func (s *SystemMonitor) Execute(ctx context.Context, logger *logtos.ActsHelper) 
 	}
 
 	return nil
+}
+
+func (s *SystemMonitor) GetSysStats() *pbc.ServerLoad {
+	return &pbc.ServerLoad{
+		TrafficReceived:    s.nm.recv,
+		TrafficTransmitted: s.nm.sent,
+		CPUUsage:           s.cm.lastUsage,
+		MemoryAvailable:    s.mm.total - s.mm.used,
+		MemoryTotal:        s.mm.total,
+		DiskAvailable:      s.dm.total - s.dm.used,
+		DiskTotal:          s.dm.total,
+		DiskRead:           s.dm.read,
+		DiskWrite:          s.dm.write,
+	}
 }

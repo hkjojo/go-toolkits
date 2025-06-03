@@ -2,9 +2,10 @@ module github.com/hkjojo/go-toolkits/schedule
 
 go 1.23
 
-replace git.gonit.codes/dealer/actshub/protocol => git.gonit.codes/dealer/actshub/protocol.git v0.0.0-20250424020936-b4880804d5dc
+replace git.gonit.codes/dealer/actshub/protocol => git.gonit.codes/dealer/actshub/protocol.git v0.0.0-20250530065256-d85f819ba676
 
 require (
+	git.gonit.codes/dealer/actshub/protocol v0.0.0-00010101000000-000000000000
 	github.com/go-kratos/kratos/v2 v2.8.4
 	github.com/hkjojo/go-toolkits/log/v2 v2.2.3-0.20250428102002-2b3a6106536b
 	github.com/robfig/cron/v3 v3.0.1
@@ -13,7 +14,6 @@ require (
 
 require (
 	dario.cat/mergo v1.0.0 // indirect
-	git.gonit.codes/dealer/actshub/protocol v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-go/v5 v5.0.2 // indirect
 	github.com/DataDog/gostackparse v0.5.0 // indirect
 	github.com/Microsoft/go-winio v0.5.1 // indirect

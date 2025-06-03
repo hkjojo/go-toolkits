@@ -28,6 +28,7 @@ type CPUMonitor struct {
 	cpuLimitCores  float64
 	lastTotalUsage uint64
 	lastTime       time.Time
+	lastUsage      float64
 }
 
 func NewCPUMonitor() (*CPUMonitor, error) {

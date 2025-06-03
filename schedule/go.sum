@@ -1,7 +1,7 @@
 dario.cat/mergo v1.0.0 h1:AGCNq9Evsj31mOgNPcLyXc+4PNABt905YmuqPYYpBWk=
 dario.cat/mergo v1.0.0/go.mod h1:uNxQE+84aUszobStD9th8a29P2fMDhsBdgRYvZOxGmk=
-git.gonit.codes/dealer/actshub/protocol.git v0.0.0-20250424020936-b4880804d5dc h1:eh2EdiCeDFd+FPhbG2SOw6+i3F7q8jPsPa807ltt8wU=
-git.gonit.codes/dealer/actshub/protocol.git v0.0.0-20250424020936-b4880804d5dc/go.mod h1:SeiFH4ecT4/ltSzTOy3p8uKY8735nNJtcrRfagmByHs=
+git.gonit.codes/dealer/actshub/protocol.git v0.0.0-20250530065256-d85f819ba676 h1:2iusschvrFEfcPu7QN8EXBr3gtRbBOmQFeRaOOs+V9k=
+git.gonit.codes/dealer/actshub/protocol.git v0.0.0-20250530065256-d85f819ba676/go.mod h1:SeiFH4ecT4/ltSzTOy3p8uKY8735nNJtcrRfagmByHs=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/toml v1.2.1 h1:9F2/+DoOYIOksmaJFPw1tGFy1eDnIJXg+UHjuD8lTak=
 github.com/BurntSushi/toml v1.2.1/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbicEuybxQ=

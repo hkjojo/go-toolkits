@@ -50,6 +50,8 @@ func formatByteSpeed(b uint64, deltaSec float64) string {
 }
 
 type MemoryMonitor struct {
+	used  uint64
+	total uint64
 }
 
 func NewMemoryMonitor() *MemoryMonitor {

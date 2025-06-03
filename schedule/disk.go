@@ -10,9 +10,12 @@ import (
 
 type DiskMonitor struct {
 	path          []string
-	ioPath        []string
 	prevTime      time.Time
 	prevDiskStats map[string]disk.IOCountersStat
+	used          uint64
+	total         uint64
+	read          uint64
+	write         uint64
 }
 
 func NewDiskMonitor(paths []string) *DiskMonitor {
@@ -38,6 +41,8 @@ func (m *DiskMonitor) collectDiskStats(log *logtos.ActsHelper) error {
 		diskUsed += usage.Used
 		diskTotal += usage.Total
 	}
+	m.used = diskUsed
+	m.total = diskTotal
 	log.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("disk_usage: %.2f%%, used: %s, total: %s",
 		float64(diskUsed)/float64(diskTotal), formatBytes(diskUsed), formatBytes(diskTotal)))
 
@@ -51,6 +56,8 @@ func (m *DiskMonitor) collectDiskStats(log *logtos.ActsHelper) error {
 			}
 			m.prevDiskStats[name] = current
 		}
+		m.read = ioRead
+		m.write = ioWrite
 		log.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("disk_read: %s, %s, disk_write: %s, %s",
 			formatByteSpeed(ioRead, deltaSeconds), formatBytes(ioRead), formatByteSpeed(ioWrite, deltaSeconds), formatBytes(ioWrite)))
 	}
