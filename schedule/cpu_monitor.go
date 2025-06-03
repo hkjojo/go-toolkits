@@ -58,8 +58,6 @@ func NewCPUMonitor() (*CPUMonitor, error) {
 		}
 		m.lastTotalUsage = uint64(percent[0])
 	}
-	fmt.Printf("cpu monitor info, isContainer: %t, cgroupVersion: %d, cpuLimitCores: %f\n", m.isContainer,
-		m.cgroupVersion, m.cpuLimitCores)
 
 	return m, nil
 }

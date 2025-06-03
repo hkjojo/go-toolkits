@@ -1,7 +1,6 @@
 package schedule
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"os"
@@ -60,13 +59,13 @@ func NewMemoryMonitor() *MemoryMonitor {
 }
 
 func (m *MemoryMonitor) collectMemStats() (uint64, uint64, error) {
-	// 通过cgroup v1接口获取
-	if memUsed, memLimit, err := readCgroupMemoryV1(); err == nil {
+	// 通过cgroup v2接口获取
+	if memUsed, memLimit, err := readCgroupV2Memory(); err == nil {
 		return memUsed, memLimit, nil
 	}
 
-	// 通过cgroup v2接口获取
-	if memUsed, memLimit, err := readCgroupMemoryV2(); err == nil {
+	// 通过cgroup v1接口获取
+	if memUsed, memLimit, err := readCgroupV1Memory(); err == nil {
 		return memUsed, memLimit, nil
 	}
 
@@ -78,18 +77,8 @@ func (m *MemoryMonitor) collectMemStats() (uint64, uint64, error) {
 	return 0, 0, errors.New("collect memory stats failed")
 }
 
-func showContainerLimitComparison(used, limit string) {
-	usedVal, _ := strconv.ParseFloat(strings.Split(used, " ")[0], 64)
-	limitVal, _ := strconv.ParseFloat(strings.Split(limit, " ")[0], 64)
-
-	if limitVal > 0 {
-		percent := usedVal / limitVal * 100
-		fmt.Printf("mem_usage: %.1f%% (limit: %s)\n", percent, limit)
-	}
-}
-
 // readCgroupMemoryV1 读取cgroup v1内存信息
-func readCgroupMemoryV1() (used, limit uint64, err error) {
+func readCgroupV1Memory() (used, limit uint64, err error) {
 	// 尝试读取内存使用量
 	if data, err := os.ReadFile("/sys/fs/cgroup/memory/memory.usage_in_bytes"); err == nil {
 		if used, err = strconv.ParseUint(strings.TrimSpace(string(data)), 10, 64); err != nil {
@@ -111,47 +100,34 @@ func readCgroupMemoryV1() (used, limit uint64, err error) {
 	return used, limit, nil
 }
 
-func readCgroupMemoryV2() (used, limit uint64, err error) {
-	// 获取当前cgroup路径
+// readCgroupV2MemoryCurrent 读取cgroup v2内存使用量
+func readCgroupV2Memory() (used, limit uint64, err error) {
 	cgroupPath, err := getCurrentCgroupPath()
 	if err != nil {
 		return 0, 0, err
 	}
 
-	// 读取内存统计
-	memStatPath := filepath.Join(cgroupPath, "memory.stat")
-	file, err := os.Open(memStatPath)
+	usedData, err := os.ReadFile(filepath.Join(cgroupPath, "memory.current"))
 	if err != nil {
 		return 0, 0, err
 	}
-	defer file.Close()
 
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-
-		switch fields[0] {
-		case "anon":
-			if val, err := strconv.ParseUint(fields[1], 10, 64); err == nil {
-				used += val
-			}
-		case "file":
-			if val, err := strconv.ParseUint(fields[1], 10, 64); err == nil {
-				used += val
-			}
-		}
+	used, err = strconv.ParseUint(strings.TrimSpace(string(usedData)), 10, 64)
+	if err != nil {
+		return 0, 0, err
 	}
 
-	// 读取内存限制
-	if data, err := os.ReadFile(filepath.Join(cgroupPath, "memory.max")); err == nil {
-		strVal := strings.TrimSpace(string(data))
-		if strVal == "max" {
-			limit = ^uint64(0) // 无限制
-		} else if limit, err = strconv.ParseUint(strVal, 10, 64); err != nil {
+	limitData, err := os.ReadFile(filepath.Join(cgroupPath, "memory.max"))
+	if err != nil {
+		return 0, 0, err
+	}
+	limitStr := strings.TrimSpace(string(limitData))
+
+	if limitStr == "max" {
+		limit = ^uint64(0) // 设置为最大值
+	} else {
+		limit, err = strconv.ParseUint(limitStr, 10, 64)
+		if err != nil {
 			return 0, 0, err
 		}
 	}
