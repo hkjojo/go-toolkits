@@ -68,7 +68,7 @@ type SystemMonitor struct {
 	nm *NetworkMonitor
 }
 
-func NewSystemMonitor(ioPath, path []string) (*SystemMonitor, error) {
+func NewSystemMonitor(path []string) (*SystemMonitor, error) {
 	cpuMonitor, err := NewCPUMonitor()
 	if err != nil {
 		return nil, err
@@ -77,7 +77,7 @@ func NewSystemMonitor(ioPath, path []string) (*SystemMonitor, error) {
 	return &SystemMonitor{
 		cm: cpuMonitor,
 		mm: NewMemoryMonitor(),
-		dm: NewDiskMonitor(ioPath, path),
+		dm: NewDiskMonitor(path),
 		nm: NewNetworkMonitor(),
 	}, nil
 }
@@ -93,9 +93,10 @@ func (s *SystemMonitor) Execute(ctx context.Context, logger *logtos.ActsHelper) 
 	// mem
 	memUsed, memLimit, err := s.mm.collectMemStats()
 	if err != nil {
-		logger.Errorw(logtos.ModuleSystem, MonitorSource, "collect mem_usage failed")
+		logger.Errorw(logtos.ModuleSystem, MonitorSource, "collect mem stats failed")
 	}
-	log.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("mem_used: %s, mem_limit: %s", memUsed, memLimit))
+	log.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("mem_usage: %.2f%%, mem_used: %s, mem_limit: %s",
+		float64(memUsed)/float64(memLimit), formatBytes(memUsed), formatBytes(memLimit)))
 
 	// disk
 	err = s.dm.collectDiskStats(logger)

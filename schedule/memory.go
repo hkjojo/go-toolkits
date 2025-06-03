@@ -56,23 +56,23 @@ func NewMemoryMonitor() *MemoryMonitor {
 	return &MemoryMonitor{}
 }
 
-func (m *MemoryMonitor) collectMemStats() (string, string, error) {
+func (m *MemoryMonitor) collectMemStats() (uint64, uint64, error) {
 	// 通过cgroup v1接口获取
 	if memUsed, memLimit, err := readCgroupMemoryV1(); err == nil {
-		return formatBytes(memUsed), formatBytes(memLimit), nil
+		return memUsed, memLimit, nil
 	}
 
 	// 通过cgroup v2接口获取
 	if memUsed, memLimit, err := readCgroupMemoryV2(); err == nil {
-		return formatBytes(memUsed), formatBytes(memLimit), nil
+		return memUsed, memLimit, nil
 	}
 
 	// 回退到gopsutil
 	if memInfo, err := mem.VirtualMemory(); err == nil {
-		return formatBytes(memInfo.Used), formatBytes(memInfo.Total), nil
+		return memInfo.Used, memInfo.Total, nil
 	}
 
-	return "", "", errors.New("collect memory usage failed")
+	return 0, 0, errors.New("collect memory stats failed")
 }
 
 func showContainerLimitComparison(used, limit string) {

@@ -31,7 +31,6 @@ func (m *NetworkMonitor) collectNetworkStats(log *logtos.ActsHelper) error {
 	)
 	if m.prevNetStats != nil {
 		for i, current := range netStats {
-			fmt.Printf("%s: %d, %d\n", current.Name, current.PacketsRecv, current.PacketsSent)
 			if strings.HasPrefix(current.Name, "lo") || strings.HasPrefix(current.Name, "docker") ||
 				strings.HasPrefix(current.Name, "veth") {
 				continue
