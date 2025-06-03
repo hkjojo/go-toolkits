@@ -3,6 +3,7 @@ package schedule
 import (
 	"errors"
 	"fmt"
+	logtos "github.com/hkjojo/go-toolkits/log/v2/kratos"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -56,6 +57,20 @@ type MemoryMonitor struct {
 
 func NewMemoryMonitor() *MemoryMonitor {
 	return &MemoryMonitor{}
+}
+
+func (m *MemoryMonitor) getMemStats(logger *logtos.ActsHelper) {
+	if memUsed, memLimit, err := readCgroupV2Memory(); err == nil {
+		logger.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("cgroupV2, mem_used:%d, mem_limit:%d", memUsed, memLimit))
+	} else {
+		logger.Errorw(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("read cgroupV2Memory failed, %s", err))
+	}
+
+	if memUsed, memLimit, err := readCgroupV1Memory(); err == nil {
+		logger.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("cgroupV1, mem_used:%d, mem_limit:%d", memUsed, memLimit))
+	} else {
+		logger.Errorw(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("read cgroupV1Memory failed, %s", err))
+	}
 }
 
 func (m *MemoryMonitor) collectMemStats() (uint64, uint64, error) {

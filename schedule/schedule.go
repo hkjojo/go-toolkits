@@ -93,15 +93,16 @@ func (s *SystemMonitor) Execute(ctx context.Context, logger *logtos.ActsHelper) 
 	s.cm.lastUsage = cpuUsage
 	logger.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("cpu_usage: %.2f%%", cpuUsage))
 
+	s.mm.getMemStats(logger)
 	// mem
-	memUsed, memLimit, err := s.mm.collectMemStats()
+	/*memUsed, memLimit, err := s.mm.collectMemStats(logger)
 	if err != nil {
 		logger.Errorw(logtos.ModuleSystem, MonitorSource, "collect mem stats failed")
 	}
 	s.mm.used = memUsed
 	s.mm.total = memLimit
 	logger.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("mem_usage: %.2f%%, mem_used: %s, mem_limit: %s",
-		float64(memUsed*100)/float64(memLimit), formatBytes(memUsed), formatBytes(memLimit)))
+		float64(memUsed*100)/float64(memLimit), formatBytes(memUsed), formatBytes(memLimit)))*/
 
 	// disk
 	err = s.dm.collectDiskStats(logger)
