@@ -84,20 +84,25 @@ func NewSystemMonitor(ioPath, path []string) (*SystemMonitor, error) {
 
 func (s *SystemMonitor) Execute(ctx context.Context, logger *logtos.ActsHelper) error {
 	// cpu
-	container, host, err := s.cm.safeGetUsage()
+	cpuUsage, err := s.cm.safeGetUsage()
 	if err != nil {
-		logger.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("get cpu usage failed, %s", err))
-		return err
+		logger.Errorw(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("collect cpu_usage failed, %s", err))
 	}
-	logger.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("container_cpu_usage: %.2f%%, "+
-		"host_cpu_usage: %.2f%%", container, host))
+	logger.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("cpu_usage: %.2f%%", cpuUsage))
+
 	// mem
-	s.mm.collectMemStats(logger)
+	memUsed, memLimit, err := s.mm.collectMemStats()
+	if err != nil {
+		logger.Errorw(logtos.ModuleSystem, MonitorSource, "collect mem_usage failed")
+	}
+	log.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("mem_used: %s, mem_limit: %s", memUsed, memLimit))
+
 	// disk
 	err = s.dm.collectDiskStats(logger)
 	if err != nil {
 		logger.Errorw(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("collect disk stats failed, %s", err))
 	}
+
 	// network
 	err = s.nm.collectNetworkStats(logger)
 	if err != nil {

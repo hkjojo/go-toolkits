@@ -2,8 +2,8 @@ package schedule
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
-	logtos "github.com/hkjojo/go-toolkits/log/v2/kratos"
 	"github.com/shirou/gopsutil/v3/mem"
 	"os"
 	"path/filepath"
@@ -56,20 +56,23 @@ func NewMemoryMonitor() *MemoryMonitor {
 	return &MemoryMonitor{}
 }
 
-/*func (m *MemoryMonitor) collectMemStats(log *logtos.ActsHelper) {
-	var memStats runtime.MemStats
-	runtime.ReadMemStats(&memStats)
-	alloc := formatBytes(memStats.Alloc)         //当前堆对象分配的内存
-	sys := formatBytes(memStats.Sys)             //从操作系统获得的总内存
-	heapAlloc := formatBytes(memStats.HeapAlloc) // 堆上分配且仍在使用的内存
-	totalAlloc := formatBytes(memStats.TotalAlloc)
+func (m *MemoryMonitor) collectMemStats() (string, string, error) {
+	// 通过cgroup v1接口获取
+	if memUsed, memLimit, err := readCgroupMemoryV1(); err == nil {
+		return formatBytes(memUsed), formatBytes(memLimit), nil
+	}
 
-	log.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("mem_usage, alloc: %s, sys: %s, heap_alloc: %s, "+
-		"total_alloc: %s", alloc, sys, heapAlloc, totalAlloc))
-}*/
+	// 通过cgroup v2接口获取
+	if memUsed, memLimit, err := readCgroupMemoryV2(); err == nil {
+		return formatBytes(memUsed), formatBytes(memLimit), nil
+	}
 
-func (m *MemoryMonitor) collectMemStats(log *logtos.ActsHelper) {
-	getContainerMemory(log)
+	// 回退到gopsutil
+	if memInfo, err := mem.VirtualMemory(); err == nil {
+		return formatBytes(memInfo.Used), formatBytes(memInfo.Total), nil
+	}
+
+	return "", "", errors.New("collect memory usage failed")
 }
 
 func showContainerLimitComparison(used, limit string) {
@@ -79,26 +82,6 @@ func showContainerLimitComparison(used, limit string) {
 	if limitVal > 0 {
 		percent := usedVal / limitVal * 100
 		fmt.Printf("mem_usage: %.1f%% (limit: %s)\n", percent, limit)
-	}
-}
-
-func getContainerMemory(log *logtos.ActsHelper) {
-	// 方法1：通过cgroup v1接口获取
-	if memUsed, memLimit, err := readCgroupMemoryV1(); err == nil {
-		log.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("container_mem_v1, used:%s, limit:%s",
-			formatBytes(memUsed), formatBytes(memLimit)))
-	}
-
-	// 方法2：通过cgroup v2接口获取
-	if memUsed, memLimit, err := readCgroupMemoryV2(); err == nil {
-		log.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("container_mem_v2, used:%s, limit:%s",
-			formatBytes(memUsed), formatBytes(memLimit)))
-	}
-
-	// 方法3：回退到gopsutil（不准确）
-	if memInfo, err := mem.VirtualMemory(); err == nil {
-		log.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("container_mem_gops, used:%s, limit:%s",
-			formatBytes(memInfo.Used), formatBytes(memInfo.Total)))
 	}
 }
 

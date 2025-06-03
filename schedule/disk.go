@@ -39,7 +39,7 @@ func (m *DiskMonitor) collectDiskStats(log *logtos.ActsHelper) error {
 			path, usage.UsedPercent, formatBytes(usage.Total), formatBytes(usage.Free)))
 	}
 
-	diskIO, _ := disk.IOCounters(m.ioPath...)
+	diskIO, _ := disk.IOCounters()
 	ioStats := make(map[string]uint64)
 	if deltaSeconds > 0 {
 		for name, current := range diskIO {
