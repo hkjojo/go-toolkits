@@ -2,15 +2,11 @@ package schedule
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
-	logtos "github.com/hkjojo/go-toolkits/log/v2/kratos"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
-
-	"github.com/shirou/gopsutil/v3/mem"
 )
 
 const (
@@ -60,51 +56,58 @@ func NewMemoryMonitor() *MemoryMonitor {
 	return &MemoryMonitor{}
 }
 
-func (m *MemoryMonitor) getMemStats(logger *logtos.ActsHelper) {
-	if memUsed, memLimit, err := readCgroupV2Memory(); err == nil {
-		logger.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("cgroupV2, mem_used:%s, mem_limit:%s",
-			formatBytes(memUsed), formatBytes(memLimit)))
-	} else {
-		logger.Errorw(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("read cgroupV2Memory failed, %s", err))
-	}
-
-	if memUsed, memLimit, err := readCgroupV1Memory(); err == nil {
-		logger.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("cgroupV1, mem_used:%s, mem_limit:%s",
-			formatBytes(memUsed), formatBytes(memLimit)))
-	} else {
-		logger.Errorw(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("read cgroupV1Memory failed, %s", err))
-	}
-
-	workSet, err := getContainerMemoryWorkingSet()
+func (m *MemoryMonitor) collectMemStats() (uint64, uint64, error) {
+	memUsed, memLimit, err := getContainerMemory()
 	if err != nil {
-		logger.Errorw(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("getContainerMemoryWorking failed, %s", err))
+		return 0, 0, err
 	}
-	logger.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("get ContainerMemory workset: %s", formatBytes(workSet)))
+
+	return memUsed, memLimit, nil
 }
 
-func (m *MemoryMonitor) collectMemStats() (uint64, uint64, error) {
-	// 通过cgroup v2接口获取
-	if memUsed, memLimit, err := readCgroupV2Memory(); err == nil {
-		return memUsed, memLimit, nil
+func getContainerMemory() (used, limit uint64, err error) {
+	usageData, err := os.ReadFile(cgroupMemUsagePath)
+	if err != nil {
+		return 0, 0, err
+	}
+	usage, err := strconv.ParseUint(strings.TrimSpace(string(usageData)), 10, 64)
+	if err != nil {
+		return 0, 0, err
 	}
 
-	// 通过cgroup v1接口获取
-	if memUsed, memLimit, err := readCgroupV1Memory(); err == nil {
-		return memUsed, memLimit, nil
+	if limitData, err := os.ReadFile(cgroupMemLimitPath); err == nil {
+		if limit, err = strconv.ParseUint(strings.TrimSpace(string(limitData)), 10, 64); err != nil {
+			return 0, 0, err
+		}
+	} else {
+		return 0, 0, err
 	}
 
-	// 回退到gopsutil
-	if memInfo, err := mem.VirtualMemory(); err == nil {
-		return memInfo.Used, memInfo.Total, nil
+	statData, err := os.ReadFile(cgroupMemStatPath)
+	if err != nil {
+		return 0, 0, err
 	}
 
-	return 0, 0, errors.New("collect memory stats failed")
+	inactiveFile := uint64(0)
+	scanner := bufio.NewScanner(strings.NewReader(string(statData)))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "total_inactive_file ") {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				inactiveFile, _ = strconv.ParseUint(fields[1], 10, 64)
+			}
+			break
+		}
+	}
+	used = usage - inactiveFile
+
+	return used, limit, nil
 }
 
 // readCgroupMemoryV1 读取cgroup v1内存信息
 func readCgroupV1Memory() (used, limit uint64, err error) {
-	// 尝试读取内存使用量
-	if data, err := os.ReadFile("/sys/fs/cgroup/memory/memory.usage_in_bytes"); err == nil {
+	if data, err := os.ReadFile(cgroupMemUsagePath); err == nil {
 		if used, err = strconv.ParseUint(strings.TrimSpace(string(data)), 10, 64); err != nil {
 			return 0, 0, err
 		}
@@ -112,8 +115,7 @@ func readCgroupV1Memory() (used, limit uint64, err error) {
 		return 0, 0, err
 	}
 
-	// 尝试读取内存限制
-	if data, err := os.ReadFile("/sys/fs/cgroup/memory/memory.limit_in_bytes"); err == nil {
+	if data, err := os.ReadFile(cgroupMemLimitPath); err == nil {
 		if limit, err = strconv.ParseUint(strings.TrimSpace(string(data)), 10, 64); err != nil {
 			return 0, 0, err
 		}
@@ -124,14 +126,15 @@ func readCgroupV1Memory() (used, limit uint64, err error) {
 	return used, limit, nil
 }
 
+// 需挂载/sys/fs/cgroup，测试结果与grafana数据不一致
 // readCgroupV2MemoryCurrent 读取cgroup v2内存使用量
 func readCgroupV2Memory() (used, limit uint64, err error) {
-	cgroupPath, err := getCurrentCgroupPath()
+	path, err := getCurrentCgroupPath()
 	if err != nil {
 		return 0, 0, err
 	}
 
-	usedData, err := os.ReadFile(filepath.Join(cgroupPath, "memory.current"))
+	usedData, err := os.ReadFile(filepath.Join(path, "memory.current"))
 	if err != nil {
 		return 0, 0, err
 	}
@@ -141,7 +144,7 @@ func readCgroupV2Memory() (used, limit uint64, err error) {
 		return 0, 0, err
 	}
 
-	limitData, err := os.ReadFile(filepath.Join(cgroupPath, "memory.max"))
+	limitData, err := os.ReadFile(filepath.Join(path, "memory.max"))
 	if err != nil {
 		return 0, 0, err
 	}
@@ -176,46 +179,10 @@ func getCurrentCgroupPath() (string, error) {
 		controllers := strings.Split(parts[1], ",")
 		for _, ctrl := range controllers {
 			if ctrl == "memory" {
-				return filepath.Join("/sys/fs/cgroup", parts[2]), nil
+				return filepath.Join(cgroupPath, parts[2]), nil
 			}
 		}
 	}
 
 	return "", fmt.Errorf("memory cgroup not found")
-}
-
-func getContainerMemoryWorkingSet() (uint64, error) {
-	// 读取 memory.usage_in_bytes
-	usageData, err := os.ReadFile("/sys/fs/cgroup/memory/memory.usage_in_bytes")
-	if err != nil {
-		return 0, err
-	}
-	usage, err := strconv.ParseUint(strings.TrimSpace(string(usageData)), 10, 64)
-	if err != nil {
-		return 0, err
-	}
-
-	// 读取 memory.stat
-	statData, err := os.ReadFile("/sys/fs/cgroup/memory/memory.stat")
-	if err != nil {
-		return 0, err
-	}
-
-	// 解析 inactive_file
-	inactiveFile := uint64(0)
-	scanner := bufio.NewScanner(strings.NewReader(string(statData)))
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.HasPrefix(line, "total_inactive_file ") {
-			fields := strings.Fields(line)
-			if len(fields) >= 2 {
-				inactiveFile, _ = strconv.ParseUint(fields[1], 10, 64)
-			}
-			break
-		}
-	}
-
-	// 计算 working set
-	workingSet := usage - inactiveFile
-	return workingSet, nil
 }

@@ -13,12 +13,14 @@ import (
 )
 
 const (
-	envK8sPodUID     = "POD_UID"
-	cgroupV1CPUPath  = "/sys/fs/cgroup/cpu,cpuacct"
-	cgroupV2CPUPath  = "/sys/fs/cgroup"
+	cgroupPath       = "/sys/fs/cgroup"
 	cpuAcctUsageFile = "cpuacct.usage"
-	cpuStatFile      = "cpu.stat"
 	cpuMaxFile       = "cpu.max"
+	cgroupCPUPath    = cgroupPath + "/cpu,cpuacct"
+
+	cgroupMemStatPath  = cgroupPath + "/memory/memory.stat"
+	cgroupMemUsagePath = cgroupPath + "/memory/memory.usage_in_bytes"
+	cgroupMemLimitPath = cgroupPath + "/memory/memory.limit_in_bytes"
 )
 
 type CPUMonitor struct {
@@ -126,14 +128,14 @@ func hasContainerCgroups() bool {
 	if _, err := os.Stat("/.dockerenv"); err == nil {
 		return true
 	}
-	if _, err := os.Stat(cgroupV1CPUPath); err == nil {
+	if _, err := os.Stat(cgroupCPUPath); err == nil {
 		return true
 	}
 	return false
 }
 
 func detectCgroupVersion() int {
-	if _, err := os.Stat(filepath.Join(cgroupV2CPUPath, cpuMaxFile)); err == nil {
+	if _, err := os.Stat(filepath.Join(cgroupPath, cpuMaxFile)); err == nil {
 		return 2
 	}
 	return 1
@@ -163,8 +165,8 @@ func getK8sCPULimit() float64 {
 }
 
 func (cm *CPUMonitor) getV1CPULimit() (float64, error) {
-	periodFile := filepath.Join(cgroupV1CPUPath, "cpu.cfs_period_us")
-	quotaFile := filepath.Join(cgroupV1CPUPath, "cpu.cfs_quota_us")
+	periodFile := filepath.Join(cgroupCPUPath, "cpu.cfs_period_us")
+	quotaFile := filepath.Join(cgroupCPUPath, "cpu.cfs_quota_us")
 
 	periodData, err := os.ReadFile(periodFile)
 	if err != nil {
@@ -186,7 +188,7 @@ func (cm *CPUMonitor) getV1CPULimit() (float64, error) {
 }
 
 func (cm *CPUMonitor) getV2CPULimit() (float64, error) {
-	data, err := os.ReadFile(filepath.Join(cgroupV2CPUPath, cpuMaxFile))
+	data, err := os.ReadFile(filepath.Join(cgroupPath, cpuMaxFile))
 	if err != nil {
 		return 0, err
 	}
@@ -216,9 +218,9 @@ func (cm *CPUMonitor) readContainerCPUUsage() (uint64, error) {
 	var usageFile string
 	switch cm.cgroupVersion {
 	case 1:
-		usageFile = filepath.Join(cgroupV1CPUPath, cpuAcctUsageFile)
+		usageFile = filepath.Join(cgroupCPUPath, cpuAcctUsageFile)
 	case 2:
-		usageFile = filepath.Join(cgroupV2CPUPath, cpuAcctUsageFile)
+		usageFile = filepath.Join(cgroupPath, cpuAcctUsageFile)
 	default:
 		return 0, fmt.Errorf("unsupported cgroup version")
 	}
