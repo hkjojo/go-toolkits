@@ -1,6 +1,7 @@
 package schedule
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	logtos "github.com/hkjojo/go-toolkits/log/v2/kratos"
@@ -61,16 +62,24 @@ func NewMemoryMonitor() *MemoryMonitor {
 
 func (m *MemoryMonitor) getMemStats(logger *logtos.ActsHelper) {
 	if memUsed, memLimit, err := readCgroupV2Memory(); err == nil {
-		logger.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("cgroupV2, mem_used:%d, mem_limit:%d", memUsed, memLimit))
+		logger.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("cgroupV2, mem_used:%s, mem_limit:%s",
+			formatBytes(memUsed), formatBytes(memLimit)))
 	} else {
 		logger.Errorw(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("read cgroupV2Memory failed, %s", err))
 	}
 
 	if memUsed, memLimit, err := readCgroupV1Memory(); err == nil {
-		logger.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("cgroupV1, mem_used:%d, mem_limit:%d", memUsed, memLimit))
+		logger.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("cgroupV1, mem_used:%s, mem_limit:%s",
+			formatBytes(memUsed), formatBytes(memLimit)))
 	} else {
 		logger.Errorw(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("read cgroupV1Memory failed, %s", err))
 	}
+
+	workSet, err := getContainerMemoryWorkingSet()
+	if err != nil {
+		logger.Errorw(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("getContainerMemoryWorking failed, %s", err))
+	}
+	logger.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("get ContainerMemory workset: %s", formatBytes(workSet)))
 }
 
 func (m *MemoryMonitor) collectMemStats() (uint64, uint64, error) {
@@ -173,4 +182,40 @@ func getCurrentCgroupPath() (string, error) {
 	}
 
 	return "", fmt.Errorf("memory cgroup not found")
+}
+
+func getContainerMemoryWorkingSet() (uint64, error) {
+	// 读取 memory.usage_in_bytes
+	usageData, err := os.ReadFile("/sys/fs/cgroup/memory/memory.usage_in_bytes")
+	if err != nil {
+		return 0, err
+	}
+	usage, err := strconv.ParseUint(strings.TrimSpace(string(usageData)), 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	// 读取 memory.stat
+	statData, err := os.ReadFile("/sys/fs/cgroup/memory/memory.stat")
+	if err != nil {
+		return 0, err
+	}
+
+	// 解析 inactive_file
+	inactiveFile := uint64(0)
+	scanner := bufio.NewScanner(strings.NewReader(string(statData)))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "total_inactive_file ") {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				inactiveFile, _ = strconv.ParseUint(fields[1], 10, 64)
+			}
+			break
+		}
+	}
+
+	// 计算 working set
+	workingSet := usage - inactiveFile
+	return workingSet, nil
 }
