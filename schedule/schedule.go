@@ -23,10 +23,14 @@ type Scheduler struct {
 	log  *logtos.ActsHelper
 }
 
+// NewScheduler  cron start with seconds
 func NewScheduler(loc *time.Location, logger log.Logger) *Scheduler {
 	return &Scheduler{
-		cron: cron.New(cron.WithLocation(loc)),
-		log:  logtos.NewActsHelper(logger),
+		cron: cron.New(
+			cron.WithSeconds(),
+			cron.WithLocation(loc),
+		),
+		log: logtos.NewActsHelper(logger),
 	}
 }
 
