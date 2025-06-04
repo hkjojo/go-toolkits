@@ -2,7 +2,9 @@ package schedule
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
+	"github.com/shirou/gopsutil/v3/mem"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -57,12 +59,15 @@ func NewMemoryMonitor() *MemoryMonitor {
 }
 
 func (m *MemoryMonitor) collectMemStats() (uint64, uint64, error) {
-	memUsed, memLimit, err := getContainerMemory()
-	if err != nil {
-		return 0, 0, err
+	if memUsed, memLimit, err := getContainerMemory(); err == nil {
+		return memUsed, memLimit, nil
 	}
 
-	return memUsed, memLimit, nil
+	if memInfo, err := mem.VirtualMemory(); err == nil {
+		return memInfo.Used, memInfo.Total, nil
+	}
+
+	return 0, 0, errors.New("collect memory stats failed")
 }
 
 func getContainerMemory() (used, limit uint64, err error) {

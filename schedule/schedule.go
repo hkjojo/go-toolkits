@@ -100,7 +100,7 @@ func (s *SystemMonitor) Execute(ctx context.Context, logger *logtos.ActsHelper) 
 	// mem
 	memUsed, memLimit, err := s.mm.collectMemStats()
 	if err != nil {
-		logger.Errorw(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("collect mem_stats failed, %s", err))
+		logger.Errorw(logtos.ModuleSystem, MonitorSource, "collect mem_stats failed")
 	}
 	s.mm.used = memUsed
 	s.mm.total = memLimit
