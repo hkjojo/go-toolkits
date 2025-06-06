@@ -43,7 +43,7 @@ func (m *DiskMonitor) collectDiskStats(log *logtos.ActsHelper) error {
 	}
 	m.used = diskUsed
 	m.total = diskTotal
-	log.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("disk_usage: %.2f%%, used: %s, total: %s",
+	log.Infow(logtos.ModuleSystem, SourceMonitor, fmt.Sprintf("[server] disk_usage: %.2f%%, used: %s, total: %s",
 		float64(diskUsed*100)/float64(diskTotal), formatBytes(diskUsed), formatBytes(diskTotal)))
 
 	diskIO, _ := disk.IOCounters()
@@ -58,7 +58,7 @@ func (m *DiskMonitor) collectDiskStats(log *logtos.ActsHelper) error {
 		}
 		m.read = ioRead
 		m.write = ioWrite
-		log.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("disk_read: %s, %s, disk_write: %s, %s",
+		log.Infow(logtos.ModuleSystem, SourceMonitor, fmt.Sprintf("[server] disk_read: %s, %s, disk_write: %s, %s",
 			formatByteSpeed(ioRead, deltaSeconds), formatBytes(ioRead), formatByteSpeed(ioWrite, deltaSeconds), formatBytes(ioWrite)))
 	}
 

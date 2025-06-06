@@ -12,7 +12,7 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
-const MonitorSource = "Monitor"
+const SourceMonitor = "Monitor"
 
 type Task interface {
 	Execute(ctx context.Context, logger *logtos.ActsHelper) error
@@ -45,7 +45,7 @@ func (s *Scheduler) AddTask(t *ScheduleTask) error {
 	_, err := s.cron.AddFunc(t.Cron, func() {
 		defer func() {
 			if r := recover(); r != nil {
-				s.log.Errorw(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("%s task panic recovered", t.Name))
+				s.log.Errorw(logtos.ModuleSystem, SourceMonitor, fmt.Sprintf("%s task panic recovered", t.Name))
 			}
 		}()
 
@@ -53,7 +53,7 @@ func (s *Scheduler) AddTask(t *ScheduleTask) error {
 		defer cancel()
 
 		if err := t.Task.Execute(ctx, s.log); err != nil {
-			s.log.Errorw(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("%s task execution failed", t.Name))
+			s.log.Errorw(logtos.ModuleSystem, SourceMonitor, fmt.Sprintf("%s task execution failed", t.Name))
 		}
 	})
 	return err
@@ -92,31 +92,31 @@ func (s *SystemMonitor) Execute(ctx context.Context, logger *logtos.ActsHelper) 
 	// cpu
 	cpuUsage, err := s.cm.safeGetUsage()
 	if err != nil {
-		logger.Errorw(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("collect cpu_usage failed, %s", err))
+		logger.Errorw(logtos.ModuleSystem, SourceMonitor, fmt.Sprintf("collect cpu_usage failed, %s", err))
 	}
 	s.cm.lastUsage = cpuUsage
-	logger.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("cpu_usage: %.2f%%", cpuUsage))
+	logger.Infow(logtos.ModuleSystem, SourceMonitor, fmt.Sprintf("[server] cpu_usage: %.2f%%", cpuUsage))
 
 	// mem
 	memUsed, memLimit, err := s.mm.collectMemStats()
 	if err != nil {
-		logger.Errorw(logtos.ModuleSystem, MonitorSource, "collect mem_stats failed")
+		logger.Errorw(logtos.ModuleSystem, SourceMonitor, "collect mem_stats failed")
 	}
 	s.mm.used = memUsed
 	s.mm.total = memLimit
-	logger.Infow(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("mem_usage: %.2f%%, mem_used: %s, mem_limit: %s",
-		float64(memUsed*100)/float64(memLimit), formatBytes(memUsed), formatBytes(memLimit)))
+	logger.Infow(logtos.ModuleSystem, SourceMonitor, fmt.Sprintf("[server] mem_usage: %.2f%%, mem_used: %s, "+
+		"mem_limit: %s", float64(memUsed*100)/float64(memLimit), formatBytes(memUsed), formatBytes(memLimit)))
 
 	// disk
 	err = s.dm.collectDiskStats(logger)
 	if err != nil {
-		logger.Errorw(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("collect disk_stats failed, %s", err))
+		logger.Errorw(logtos.ModuleSystem, SourceMonitor, fmt.Sprintf("collect disk_stats failed, %s", err))
 	}
 
 	// network
 	err = s.nm.collectNetworkStats(logger)
 	if err != nil {
-		logger.Errorw(logtos.ModuleSystem, MonitorSource, fmt.Sprintf("collect network_stats failed, %s", err))
+		logger.Errorw(logtos.ModuleSystem, SourceMonitor, fmt.Sprintf("collect network_stats failed, %s", err))
 	}
 
 	return nil
