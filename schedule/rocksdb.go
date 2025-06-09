@@ -62,6 +62,7 @@ func (cm *DBColumnFamilyMonitor) collectColumnFamilyStats(cfName string, cfHandl
 	numKeys := cm.getPropertySafe(cfHandle, MetricEstimateKeyNum)
 	sstSize := cm.getPropertySafe(cfHandle, MetricTotalSSTFileSize)
 	readerMem := cm.getPropertySafe(cfHandle, MetricTableReadersMem)
+	memTablesSize := cm.getPropertySafe(cfHandle, MetricMemTablesSize)
 
 	sz, err := strconv.ParseUint(sstSize, 10, 64)
 	if err != nil {
@@ -73,8 +74,13 @@ func (cm *DBColumnFamilyMonitor) collectColumnFamilyStats(cfName string, cfHandl
 		cm.log.Errorw(logtos.ModuleSystem, SourceMonitor, fmt.Sprintf("failed to parse reader_mem, %s", err))
 	}
 
+	ms, err := strconv.ParseUint(memTablesSize, 10, 64)
+	if err != nil {
+		cm.log.Errorw(logtos.ModuleSystem, SourceMonitor, fmt.Sprintf("failed to parse %s, %s", MetricMemTablesSize, err))
+	}
+
 	cm.log.Infow(logtos.ModuleSystem, SourceMonitor, fmt.Sprintf("[cf_stats - %s] key_num: %s, sst_size: %s, "+
-		"reader_mem: %s", cfName, numKeys, formatBytes(sz), formatBytes(rm)))
+		"reader_mem: %s, all_mem_tables: %s", cfName, numKeys, formatBytes(sz), formatBytes(rm), formatBytes(ms)))
 
 	value := cm.getPropertySafe(cfHandle, MetricCFStats)
 	startIndex := strings.Index(value, "Uptime")
