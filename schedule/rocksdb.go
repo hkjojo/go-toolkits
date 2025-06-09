@@ -11,6 +11,8 @@ import (
 )
 
 const (
+	ColumnFamilyDefault = "default"
+
 	MetricMemTablesSize   = "rocksdb.size-all-mem-tables" // write_buffer_size 总的
 	MetricBlockCacheUsage = "rocksdb.block-cache-usage"   // 块缓存
 
@@ -52,6 +54,9 @@ func (cm *DBColumnFamilyMonitor) Execute(ctx context.Context, logger *logtos.Act
 	cm.log = logger
 
 	for cfName, handle := range cm.cfHandles {
+		if cfName == ColumnFamilyDefault {
+			continue
+		}
 		cm.collectColumnFamilyStats(cfName, handle)
 	}
 

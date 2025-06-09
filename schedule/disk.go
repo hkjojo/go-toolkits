@@ -36,15 +36,16 @@ func (m *DiskMonitor) collectDiskStats(log *logtos.ActsHelper) error {
 	for _, path := range m.path {
 		usage, err := disk.Usage(path)
 		if err != nil {
-			return err
+			log.Errorw(logtos.ModuleSystem, SourceMonitor, fmt.Sprintf("get disk usage(%s) failed, %s", path, err))
+			continue
 		}
+		log.Infow(logtos.ModuleSystem, SourceMonitor, fmt.Sprintf("[server] disk_usage(%s): %.2f%%, used: %s, "+
+			"total: %s", path, float64(usage.Used*100)/float64(usage.Total), formatBytes(usage.Used), formatBytes(usage.Total)))
 		diskUsed += usage.Used
 		diskTotal += usage.Total
 	}
 	m.used = diskUsed
 	m.total = diskTotal
-	log.Infow(logtos.ModuleSystem, SourceMonitor, fmt.Sprintf("[server] disk_usage: %.2f%%, used: %s, total: %s",
-		float64(diskUsed*100)/float64(diskTotal), formatBytes(diskUsed), formatBytes(diskTotal)))
 
 	diskIO, _ := disk.IOCounters()
 	var ioRead, ioWrite uint64
