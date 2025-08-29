@@ -196,3 +196,86 @@ func Round(f float64, digits int) float64 {
 	p := f * p10
 	return math.Round(p) / p10
 }
+
+func MatchV2(value, pattern string) bool {
+	if pattern == "" {
+		return false
+	}
+
+	// 分离排除规则和包含规则
+	var excludePatterns, includePatterns []string
+
+	for _, exp := range strings.Split(pattern, ",") {
+		exp = strings.TrimSpace(exp)
+		if exp == "" {
+			continue
+		}
+
+		if strings.HasPrefix(exp, "!") {
+			excludePatterns = append(excludePatterns, exp[1:])
+		} else {
+			includePatterns = append(includePatterns, exp)
+		}
+	}
+
+	// 先检查排除规则（且逻辑）
+	for _, exp := range excludePatterns {
+		if wildcardMatch(value, exp) {
+			return false
+		}
+	}
+
+	// 后检查包含规则（或逻辑）
+	for _, exp := range includePatterns {
+		if wildcardMatch(value, exp) {
+			return true
+		}
+	}
+
+	// 特殊处理纯排除规则的情况
+	return len(includePatterns) == 0 && len(excludePatterns) > 0
+}
+
+// 高性能通配符匹配（支持 * 在任意位置）
+func wildcardMatch(s, pattern string) bool {
+	// 空模式只匹配空字符串
+	if pattern == "" {
+		return s == ""
+	}
+
+	// 完全匹配星号
+	if pattern == "*" {
+		return true
+	}
+
+	// 拆解模式结构
+	parts := strings.Split(pattern, "*")
+	if len(parts) == 1 {
+		return s == pattern
+	}
+
+	// 检查前缀和后缀
+	if !strings.HasPrefix(s, parts[0]) {
+		return false
+	}
+	if !strings.HasSuffix(s, parts[len(parts)-1]) {
+		return false
+	}
+
+	// 检查中间部分
+	start := len(parts[0])
+	end := len(s) - len(parts[len(parts)-1])
+	for i := 1; i < len(parts)-1; i++ {
+		part := parts[i]
+		if part == "" {
+			continue
+		}
+		index := strings.Index(s[start:end], part)
+		if index == -1 {
+			return false
+		}
+		start += index + len(part)
+	}
+
+	return true
+}

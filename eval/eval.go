@@ -2,6 +2,7 @@ package eval
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/Knetic/govaluate"
@@ -18,14 +19,16 @@ func GenMatcher(expr string, test interface{}) (*govaluate.EvaluableExpression, 
 func GenMatcherWithFuncs(expr string, test interface{}, funcs map[string]govaluate.ExpressionFunction,
 ) (expression *govaluate.EvaluableExpression, err error) {
 	functions := map[string]govaluate.ExpressionFunction{
-		"match":    matchFunc,
-		"matchIE":  matchIEFunc,
-		"any":      anyFunc,
-		"anyIE":    anyIEFunc,
-		"range":    rangeFunc,
-		"coloreq":  colorEqFunc,
-		"in":       inFunc,
-		"duration": duration,
+		"match":      matchFunc,
+		"matchIE":    matchIEFunc,
+		"matchMulti": matchMultiFunc,
+		"any":        anyFunc,
+		"anyIE":      anyIEFunc,
+		"anyMulti":   anyMultiFunc,
+		"range":      rangeFunc,
+		"coloreq":    colorEqFunc,
+		"in":         inFunc,
+		"duration":   duration,
 	}
 
 	for name, f := range funcs {
@@ -67,6 +70,26 @@ func matchFunc(args ...interface{}) (interface{}, error) {
 	return utils.Match(value, pattern), nil
 }
 
+func matchMultiFunc(args ...interface{}) (interface{}, error) {
+	if len(args) != 2 {
+		return false, ErrParameter
+	}
+	value, ok := args[0].(string)
+	if !ok {
+		return false, ErrParameter
+	}
+	pattern, ok := args[1].(string)
+	if !ok {
+		return false, ErrParameter
+	}
+	for _, v := range strings.Split(value, ",") {
+		if utils.Match(v, pattern) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func matchIEFunc(args ...interface{}) (interface{}, error) {
 	if len(args) != 2 {
 		return false, ErrParameter
@@ -95,6 +118,27 @@ func anyFunc(args ...interface{}) (interface{}, error) {
 		return false, ErrParameter
 	}
 	return utils.Any(value, pattern), nil
+}
+
+func anyMultiFunc(args ...interface{}) (interface{}, error) {
+	if len(args) != 2 {
+		return false, ErrParameter
+	}
+	value, ok := args[0].(string)
+	if !ok {
+		return false, ErrParameter
+	}
+	pattern, ok := args[1].(string)
+	if !ok {
+		return false, ErrParameter
+	}
+
+	for _, v := range strings.Split(value, ",") {
+		if utils.Any(v, pattern) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func anyIEFunc(args ...interface{}) (interface{}, error) {

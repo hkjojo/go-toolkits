@@ -2,11 +2,13 @@ package sql
 
 import (
 	"context"
-	"gorm.io/gorm/schema"
 	"runtime"
 	"time"
 
-	goqu "github.com/doug-martin/goqu/v9"
+	tlog "github.com/hkjojo/go-toolkits/log/v2"
+	"gorm.io/gorm/schema"
+
+	"github.com/doug-martin/goqu/v9"
 	"github.com/pkg/errors"
 
 	"gorm.io/driver/clickhouse"
@@ -49,7 +51,10 @@ type Config struct {
 	MaxOpenConns    int
 	MaxIdleConns    int
 	ConnMaxLifetime time.Duration
+	ConnMaxIdleTime time.Duration
 	Debug           bool
+	SlowThreshold   time.Duration
+	Logger          *tlog.Config
 }
 
 // Inject init db conns
@@ -96,6 +101,14 @@ func Open(cfg *Config, opts ...gorm.Option) (*DataBase, error) {
 		return nil, err
 	}
 
+	if cfg.Logger != nil {
+		logger, err := NewGormLogger(cfg.Logger, cfg.SlowThreshold)
+		if err != nil {
+			return nil, err
+		}
+		db.Config.Logger = logger
+	}
+
 	if cfg.Debug {
 		db = db.Debug()
 	}
@@ -115,6 +128,10 @@ func Open(cfg *Config, opts ...gorm.Option) (*DataBase, error) {
 
 	if cfg.ConnMaxLifetime != 0 {
 		conn.SetConnMaxLifetime(cfg.ConnMaxLifetime)
+	}
+
+	if cfg.ConnMaxIdleTime != 0 {
+		conn.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
 	}
 
 	goquDB, err := NewGoqu(cfg.Dialect, conn)
