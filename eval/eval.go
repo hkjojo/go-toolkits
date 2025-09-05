@@ -30,9 +30,9 @@ func WithFuncs(funcs map[string]govaluate.ExpressionFunction) func(*Option) {
 	}
 }
 
-func WithDefaultFuncs(funcs map[string]govaluate.ExpressionFunction) func(*Option) {
+func WithDefaultFuncs() func(*Option) {
 	return func(o *Option) {
-		o.funcs = funcs
+		o.defaultFunc = true
 	}
 }
 
