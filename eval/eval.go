@@ -12,6 +12,82 @@ import (
 
 var ErrParameter = errors.New("parameter err")
 
+type Option struct {
+	test        interface{}
+	funcs       map[string]govaluate.ExpressionFunction
+	defaultFunc bool
+}
+
+func WithTest(test interface{}) func(*Option) {
+	return func(o *Option) {
+		o.test = test
+	}
+}
+
+func WithFuncs(funcs map[string]govaluate.ExpressionFunction) func(*Option) {
+	return func(o *Option) {
+		o.funcs = funcs
+	}
+}
+
+func WithDefaultFuncs(funcs map[string]govaluate.ExpressionFunction) func(*Option) {
+	return func(o *Option) {
+		o.funcs = funcs
+	}
+}
+
+func Gen(expr string, options ...func(*Option)) (expression *govaluate.EvaluableExpression, err error) {
+	opt := &Option{}
+	for _, f := range options {
+		f(opt)
+	}
+
+	defaultsFunctions := map[string]govaluate.ExpressionFunction{
+		"match":      matchFunc,
+		"matchIE":    matchIEFunc,
+		"matchMulti": matchMultiFunc,
+		"any":        anyFunc,
+		"anyIE":      anyIEFunc,
+		"anyMulti":   anyMultiFunc,
+		"range":      rangeFunc,
+		"coloreq":    colorEqFunc,
+		"in":         inFunc,
+		"duration":   duration,
+	}
+
+	functions := make(map[string]govaluate.ExpressionFunction)
+	if opt.defaultFunc {
+		functions = defaultsFunctions
+	}
+
+	for name, f := range opt.funcs {
+		functions[name] = f
+	}
+
+	expression, err = govaluate.NewEvaluableExpressionWithFunctions(expr, functions)
+	if err != nil {
+		return
+	}
+
+	// check var and type
+	if opt.test != nil {
+		ctx := structs.Map(opt.test)
+		_, err = expression.Evaluate(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		// check var
+		vars := expression.Vars()
+		for _, s := range vars {
+			if _, ok := ctx[s]; !ok {
+				return nil, errors.New("No parameter '" + s + "' found.")
+			}
+		}
+	}
+	return
+}
+
 func GenMatcher(expr string, test interface{}) (*govaluate.EvaluableExpression, error) {
 	return GenMatcherWithFuncs(expr, test, nil)
 }
