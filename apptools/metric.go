@@ -11,7 +11,8 @@ import (
 	"time"
 )
 
-func NewMetricProvider(ctx context.Context) (*metric.MeterProvider, func(), error) {
+func NewMetricProvider() (*metric.MeterProvider, func(), error) {
+	ctx := context.Background()
 	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
 	if endpoint == "" {
 		endpoint = "otel-collector.ops:4317"
