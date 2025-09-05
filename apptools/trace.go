@@ -2,17 +2,14 @@ package apptools
 
 import (
 	"context"
-	"os"
-	"time"
-
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/sdk/resource"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 	"go.opentelemetry.io/otel/trace"
-	"go.opentelemetry.io/otel/trace/noop"
+	"os"
+	"time"
 )
 
 /*
@@ -28,13 +25,17 @@ OTEL_EXPORTER_OTLP_TRACES_COMPRESSION
 OTEL_EXPORTER_OTLP_TRACES_CLIENT_KEY
 */
 func NewTracerProvider() (trace.TracerProvider, func(), error) {
-	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
+	ctx := context.Background()
+	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
 	if endpoint == "" {
-		return noop.NewTracerProvider(), func() {}, nil
+		endpoint = "otel-collector.ops:4317"
+		//endpoint = "signoz-otlp.ops-manage.com:4317"
 	}
 
-	ctx := context.Background()
-	traceExp, err := otlptrace.New(ctx, otlptracehttp.NewClient())
+	traceExp, err := otlptracegrpc.New(ctx,
+		otlptracegrpc.WithEndpoint(endpoint),
+		otlptracegrpc.WithInsecure(),
+	)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -54,18 +55,21 @@ func NewTracerProvider() (trace.TracerProvider, func(), error) {
 		return nil, nil, err
 	}
 
-	bsp := tracesdk.NewBatchSpanProcessor(traceExp)
 	tp := tracesdk.NewTracerProvider(
-		tracesdk.WithSampler(tracesdk.AlwaysSample()),
+		tracesdk.WithBatcher(traceExp),
 		tracesdk.WithResource(res),
-		tracesdk.WithSpanProcessor(bsp),
+		tracesdk.WithSampler(tracesdk.AlwaysSample()),
 	)
 
-	return tp, func() {
-		cxt, cancel := context.WithTimeout(ctx, time.Second)
+	otel.SetTracerProvider(tp)
+
+	shutdown := func() {
+		ctx, cancel := context.WithTimeout(ctx, time.Second*5)
 		defer cancel()
-		if err := tp.Shutdown(cxt); err != nil {
+		if err := tp.Shutdown(ctx); err != nil {
 			otel.Handle(err)
 		}
-	}, nil
+	}
+
+	return tp, shutdown, nil
 }

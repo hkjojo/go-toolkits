@@ -1,6 +1,7 @@
 package apptools
 
 import (
+	"go.opentelemetry.io/otel/metric"
 	"os"
 
 	"github.com/go-kratos/kratos/v2/config"
@@ -15,6 +16,7 @@ import (
 type (
 	NewSourceFunc             func() config.Source
 	NewOtelTracerProviderFunc func() (trace.TracerProvider, func(), error)
+	NewOtelMetricProviderFunc func() (metric.MeterProvider, func(), error)
 	NewLogFunc                func() (log.Logger, error)
 	NewAppFunc                func(*App) (func(), error)
 )
@@ -23,6 +25,7 @@ type Builder struct {
 	app           *cli.App
 	cfgs          []interface{}
 	tpFactory     NewOtelTracerProviderFunc
+	mpFactory     NewOtelMetricProviderFunc
 	logFactory    NewLogFunc
 	sourceFactory NewSourceFunc
 	funcs         []NewAppFunc
@@ -33,6 +36,7 @@ type Builder struct {
 type App struct {
 	logger log.Logger
 	tp     trace.TracerProvider
+	mp     metric.MeterProvider
 	source config.Config
 }
 
@@ -53,6 +57,11 @@ func NewBuilder() *Builder {
 
 func (b *Builder) AddOtelTraceProvider(f NewOtelTracerProviderFunc) *Builder {
 	b.tpFactory = f
+	return b
+}
+
+func (b *Builder) AddOtelMetricProvider(f NewOtelMetricProviderFunc) *Builder {
+	b.mpFactory = f
 	return b
 }
 
@@ -146,6 +155,17 @@ func (b *Builder) Build() (*App, func(), error) {
 		otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
 			propagation.TraceContext{}, propagation.Baggage{}))
 		otel.SetTracerProvider(app.tp)
+		cleanups = append(cleanups, cleanup)
+	}
+
+	// init metric provider
+	if b.mpFactory != nil {
+		mp, cleanup, err := b.mpFactory()
+		if err != nil {
+			return nil, nil, err
+		}
+		app.mp = mp
+		otel.SetMeterProvider(app.mp)
 		cleanups = append(cleanups, cleanup)
 	}
 
