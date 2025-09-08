@@ -151,10 +151,12 @@ func (b *Builder) Build() (*App, func(), error) {
 		if err != nil {
 			return nil, nil, err
 		}
-		app.tp = tp
-		otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
-			propagation.TraceContext{}, propagation.Baggage{}))
-		otel.SetTracerProvider(app.tp)
+		if tp != nil {
+			app.tp = tp
+			otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+				propagation.TraceContext{}, propagation.Baggage{}))
+			otel.SetTracerProvider(app.tp)
+		}
 		cleanups = append(cleanups, cleanup)
 	}
 
@@ -164,8 +166,10 @@ func (b *Builder) Build() (*App, func(), error) {
 		if err != nil {
 			return nil, nil, err
 		}
-		app.mp = mp
-		otel.SetMeterProvider(app.mp)
+		if mp != nil {
+			app.mp = mp
+			otel.SetMeterProvider(app.mp)
+		}
 		cleanups = append(cleanups, cleanup)
 	}
 

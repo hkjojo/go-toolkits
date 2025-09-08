@@ -28,8 +28,7 @@ func NewTracerProvider() (trace.TracerProvider, func(), error) {
 	ctx := context.Background()
 	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
 	if endpoint == "" {
-		endpoint = "otel-collector.ops:4317"
-		//endpoint = "signoz-otlp.ops-manage.com:4317"
+		return nil, func() {}, nil
 	}
 
 	traceExp, err := otlptracegrpc.New(ctx,
