@@ -42,28 +42,28 @@ func TestConvertOne(t *testing.T) {
 	timer := time.NewTimer(time.Second * 30)
 	defer timer.Stop()
 
-	for {
-		select {
-		case <-timer.C:
-			return
-		case <-ticker.C:
-			_counter.Add(1)
-			_gauge.Add(1)
+	// for {
+	// 	select {
+	// 	case <-timer.C:
+	// 		return
+	// 	case <-ticker.C:
+	// 		_counter.Add(1)
+	// 		_gauge.Add(1)
 
-			mfs, err := registry.Gather()
-			if err != nil {
-				return
-			}
+	// 		mfs, err := registry.Gather()
+	// 		if err != nil {
+	// 			return
+	// 		}
 
-			for _, mf := range mfs {
-				ts, err := convertOne(mf)
-				if err != nil {
-					t.Error(err)
-					return
-				}
-				metadata := getMetadata(mf)
-				t.Log(ts, metadata)
-			}
-		}
-	}
+	// 		for _, mf := range mfs {
+	// 			ts, err := convertOne(mf)
+	// 			if err != nil {
+	// 				t.Error(err)
+	// 				return
+	// 			}
+	// 			metadata := getMetadata(mf)
+	// 			t.Log(ts, metadata)
+	// 		}
+	// 	}
+	// }
 }

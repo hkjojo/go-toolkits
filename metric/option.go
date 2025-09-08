@@ -47,5 +47,14 @@ func WithJSONLoggerWriter(logger JSONLogger) Option {
 func WithOpenobserveWriter(logger ErrorLogger, opts ...PromOption) Option {
 	return func(cfg *config) {
 		cfg.writer = newOpenobserveWriter(logger, opts...)
+		SetMetricMode("prometheus")
+	}
+}
+
+// WithOTLPWriter creates a new OTLP writer for OpenTelemetry metrics
+func WithOTLPWriter(logger ErrorLogger, opts ...OTLPOption) Option {
+	return func(c *config) {
+		c.writer = newOTLPWriter(logger, opts...)
+		SetMetricMode("otel")
 	}
 }

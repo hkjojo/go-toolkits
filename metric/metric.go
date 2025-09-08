@@ -39,11 +39,27 @@ var (
 
 	// default runtime gauge
 	runtimeGauge Gauge
+
+	// metric mode: "prometheus" or "otel"
+	metricMode = "otel"
 )
 
+// SetMetricMode sets the metric collection mode ("prometheus" or "otel")
+func SetMetricMode(mode string) {
+	metricMode = mode
+}
+
+// GetMetricMode returns the current metric collection mode
+func GetMetricMode() string {
+	return metricMode
+}
+
 // MustRegister for the metrics not use NewCounter/NewGauge/New...
+// Only works in prometheus mode
 func MustRegister(collector prometheus.Collector) {
-	register.Register(collector)
+	if metricMode == "prometheus" {
+		register.Register(collector)
+	}
 }
 
 // Start ...
@@ -81,6 +97,14 @@ func metricCollector() {
 		collectStats()
 	}
 
+	// 在 OpenTelemetry 模式下，指标通过 MeterProvider 自动发送
+	// 不需要手动收集和写入
+	if metricMode == "otel" {
+		// OpenTelemetry 模式下，指标由 SDK 自动处理
+		return
+	}
+
+	// Prometheus 模式下的传统收集方式
 	mfs, err := register.Gather()
 	if err != nil {
 		dc.writer.OnError(err)
@@ -93,37 +117,66 @@ func metricCollector() {
 }
 
 func registerUp() {
-	gauge := NewGauge(prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "up",
-		Help: "the service up status",
-	}, []string{"go_version"}))
-	gauge.With(runtime.Version()).Set(1)
+	if metricMode == "otel" {
+		gauge := NewOTelGauge("up", "the service up status", "1")
+		gauge.With("go_version", runtime.Version()).Set(1)
+	} else {
+		gauge := NewGauge(prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "up",
+			Help: "the service up status",
+		}, []string{"go_version"}))
+		gauge.With(runtime.Version()).Set(1)
+	}
 }
 
 func registerStats() {
-	runtimeGauge = NewGauge(prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "runtime",
-		Help: "the service stats",
-	}, []string{"stats"}))
+	if metricMode == "otel" {
+		runtimeGauge = NewOTelGauge("runtime", "the service stats", "1")
+	} else {
+		runtimeGauge = NewGauge(prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "runtime",
+			Help: "the service stats",
+		}, []string{"stats"}))
+	}
 }
 
 func collectStats() {
 	numRoutines := runtime.NumGoroutine()
-	runtimeGauge.With("num_goroutines").Set(float64(numRoutines))
 	numCgoCall := runtime.NumCgoCall()
-	runtimeGauge.With("num_cgo_call").Set(float64(numCgoCall))
 	var stats runtime.MemStats
 	runtime.ReadMemStats(&stats)
-	// system
-	runtimeGauge.With("sys_bytes").Set(float64(stats.Sys))
-	// heap
-	runtimeGauge.With("malloc_count").Set(float64(stats.Mallocs))
-	runtimeGauge.With("free_count").Set(float64(stats.Frees))
-	runtimeGauge.With("alloc_bytes").Set(float64(stats.Alloc))
-	runtimeGauge.With("heap_objects").Set(float64(stats.HeapObjects))
-	//stack
-	runtimeGauge.With("stack_sys_bytes").Set(float64(stats.StackSys))
-	// gc
-	runtimeGauge.With("total_gc_pause_ns").Set(float64(stats.PauseTotalNs))
-	runtimeGauge.With("total_gc_runs").Set(float64(stats.NumGC))
+
+	if metricMode == "otel" {
+		// OpenTelemetry mode
+		runtimeGauge.With("stats", "num_goroutines").Set(float64(numRoutines))
+		runtimeGauge.With("stats", "num_cgo_call").Set(float64(numCgoCall))
+		// system
+		runtimeGauge.With("stats", "sys_bytes").Set(float64(stats.Sys))
+		// heap
+		runtimeGauge.With("stats", "malloc_count").Set(float64(stats.Mallocs))
+		runtimeGauge.With("stats", "free_count").Set(float64(stats.Frees))
+		runtimeGauge.With("stats", "alloc_bytes").Set(float64(stats.Alloc))
+		runtimeGauge.With("stats", "heap_objects").Set(float64(stats.HeapObjects))
+		//stack
+		runtimeGauge.With("stats", "stack_sys_bytes").Set(float64(stats.StackSys))
+		// gc
+		runtimeGauge.With("stats", "total_gc_pause_ns").Set(float64(stats.PauseTotalNs))
+		runtimeGauge.With("stats", "total_gc_runs").Set(float64(stats.NumGC))
+	} else {
+		// Prometheus mode
+		runtimeGauge.With("num_goroutines").Set(float64(numRoutines))
+		runtimeGauge.With("num_cgo_call").Set(float64(numCgoCall))
+		// system
+		runtimeGauge.With("sys_bytes").Set(float64(stats.Sys))
+		// heap
+		runtimeGauge.With("malloc_count").Set(float64(stats.Mallocs))
+		runtimeGauge.With("free_count").Set(float64(stats.Frees))
+		runtimeGauge.With("alloc_bytes").Set(float64(stats.Alloc))
+		runtimeGauge.With("heap_objects").Set(float64(stats.HeapObjects))
+		//stack
+		runtimeGauge.With("stack_sys_bytes").Set(float64(stats.StackSys))
+		// gc
+		runtimeGauge.With("total_gc_pause_ns").Set(float64(stats.PauseTotalNs))
+		runtimeGauge.With("total_gc_runs").Set(float64(stats.NumGC))
+	}
 }
