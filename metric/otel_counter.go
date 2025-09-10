@@ -1,6 +1,8 @@
 package metric
 
 import (
+	"context"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
@@ -12,8 +14,8 @@ type otelCounter struct {
 	attrs   []attribute.KeyValue
 }
 
-// NewOTelCounter creates a new OpenTelemetry counter and returns Counter.
-func NewOTelCounter(name, description string, unit string) Counter {
+// newOTelCounter creates a new OpenTelemetry counter and returns Counter.
+func newOTelCounter(name, description string, unit string) Counter {
 	meter := getMeter()
 	counter, err := meter.Float64Counter(
 		name,
@@ -46,5 +48,5 @@ func (c *otelCounter) Inc() {
 }
 
 func (c *otelCounter) Add(delta float64) {
-	c.counter.Add(getContext(), delta, metric.WithAttributes(c.attrs...))
+	c.counter.Add(context.Background(), delta, metric.WithAttributes(c.attrs...))
 }

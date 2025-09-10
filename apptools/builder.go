@@ -1,12 +1,14 @@
 package apptools
 
 import (
-	"go.opentelemetry.io/otel/metric"
 	"os"
+	"time"
 
 	"github.com/go-kratos/kratos/v2/config"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/gops/agent"
+	tlogk "github.com/hkjojo/go-toolkits/log/v2/kratos"
+	"github.com/hkjojo/go-toolkits/metric"
 	"github.com/urfave/cli/v2"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
@@ -30,6 +32,7 @@ type Builder struct {
 	sourceFactory NewSourceFunc
 	funcs         []NewAppFunc
 
+	metricMode metric.Mode
 	enableGops bool
 }
 
@@ -108,6 +111,11 @@ func (b *Builder) WithGops() *Builder {
 	return b
 }
 
+func (b *Builder) WithMetric(mode metric.Mode) *Builder {
+	b.metricMode = mode
+	return b
+}
+
 // Build return cleanup function and error
 func (b *Builder) Build() (*App, func(), error) {
 	app := &App{}
@@ -161,7 +169,11 @@ func (b *Builder) Build() (*App, func(), error) {
 	}
 
 	// init metric provider
-	if b.mpFactory != nil {
+	if b.metricMode != "" {
+		metric.Start(
+			metric.WithInterval(time.Second*10),
+			metric.WithOpenobserveWriter(tlogk.NewHelper(WithMetaKeys(app.Logger()))),
+		)
 		mp, cleanup, err := b.mpFactory()
 		if err != nil {
 			return nil, nil, err

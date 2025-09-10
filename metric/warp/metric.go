@@ -43,6 +43,7 @@ func Start(
 	env *C.char,
 	tag *C.char,
 	logPath *C.char,
+	mode *C.char,
 	mtStateEnable bool,
 	mtGatewayStateEnable bool,
 	outErr **C.char,
@@ -61,18 +62,17 @@ func Start(
 	}
 
 	clearup, err = metric.Start(
-		metric.WithInterval(time.Second*10),
-		metric.WithJSONLoggerWriter(
-			tlogk.NewHelper(
-				log.With(logger,
-					MetaKey_ENV, C.GoString(env),
-					MetaKey_TAG, C.GoString(tag),
-					MetaKey_HOSTNAME, C.GoString(hostname),
-					MetaKey_SERVICE, C.GoString(serverName),
-					MetaKey_VERSION, C.GoString(version),
-				),
+		tlogk.NewHelper(
+			log.With(logger,
+				MetaKey_ENV, C.GoString(env),
+				MetaKey_TAG, C.GoString(tag),
+				MetaKey_HOSTNAME, C.GoString(hostname),
+				MetaKey_SERVICE, C.GoString(serverName),
+				MetaKey_VERSION, C.GoString(version),
 			),
 		),
+		metric.WithInterval(time.Second*10),
+		metric.WithMode(mode),
 	)
 	if err != nil {
 		*outErr = C.CString(err.Error())
@@ -80,10 +80,10 @@ func Start(
 	}
 
 	if mtStateEnable {
-		mt5State = metric.NewGauge(metric.MT5StateGauge)
+		mt5State = metric.NewPrometheusGauge(metric.MT5StateGauge)
 	}
 	if mtGatewayStateEnable {
-		mt5GatewayState = metric.NewGauge(metric.MT5GatewayStateGauge)
+		mt5GatewayState = metric.NewPrometheusGauge(metric.MT5GatewayStateGauge)
 	}
 }
 
@@ -136,7 +136,7 @@ func MT5GatewayStateDelete(lvs **C.char, lvsLen C.int) {
 //export AddCounter
 func AddCounter(nameSpace *C.char, subsystem *C.char, name *C.char, help *C.char,
 	labelNames **C.char, labelNamesLen C.int) {
-	counters[C.GoString(name)] = metric.NewCounter(prometheus.NewCounterVec(
+	counters[C.GoString(name)] = metric.NewPrometheusCounter(prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: C.GoString(nameSpace),
 			Subsystem: C.GoString(subsystem),
@@ -148,7 +148,7 @@ func AddCounter(nameSpace *C.char, subsystem *C.char, name *C.char, help *C.char
 //export AddGauge
 func AddGauge(nameSpace *C.char, subsystem *C.char, name *C.char, help *C.char,
 	labelNames **C.char, labelNamesLen C.int) {
-	gauges[C.GoString(name)] = metric.NewGauge(prometheus.NewGaugeVec(
+	gauges[C.GoString(name)] = metric.NewPrometheusGauge(prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: C.GoString(nameSpace),
 			Subsystem: C.GoString(subsystem),
@@ -160,7 +160,7 @@ func AddGauge(nameSpace *C.char, subsystem *C.char, name *C.char, help *C.char,
 //export AddHistogram
 func AddHistogram(nameSpace *C.char, subsystem *C.char, name *C.char, help *C.char,
 	buckets []float64, labelNames **C.char, labelNamesLen C.int) {
-	observers[C.GoString(name)] = metric.NewHistogram(prometheus.NewHistogramVec(
+	observers[C.GoString(name)] = metric.NewPrometheusHistogram(prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: C.GoString(nameSpace),
 			Subsystem: C.GoString(subsystem),

@@ -1,6 +1,8 @@
 package metric
 
 import (
+	"context"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
@@ -12,8 +14,8 @@ type otelGauge struct {
 	attrs []attribute.KeyValue
 }
 
-// NewOTelGauge creates a new OpenTelemetry gauge and returns Gauge.
-func NewOTelGauge(name, description string, unit string) Gauge {
+// newOTelGauge creates a new OpenTelemetry gauge and returns Gauge.
+func newOTelGauge(name, description string, unit string) Gauge {
 	meter := getMeter()
 	gauge, err := meter.Float64UpDownCounter(
 		name,
@@ -52,13 +54,13 @@ func (g *otelGauge) Set(value float64) {
 	// We need to track the current value and calculate the delta
 	// For simplicity, we'll use Add with the value
 	// Note: This is not a perfect replacement for Prometheus Gauge.Set()
-	g.gauge.Add(getContext(), value, metric.WithAttributes(g.attrs...))
+	g.gauge.Add(context.Background(), value, metric.WithAttributes(g.attrs...))
 }
 
 func (g *otelGauge) Add(delta float64) {
-	g.gauge.Add(getContext(), delta, metric.WithAttributes(g.attrs...))
+	g.gauge.Add(context.Background(), delta, metric.WithAttributes(g.attrs...))
 }
 
 func (g *otelGauge) Sub(delta float64) {
-	g.gauge.Add(getContext(), -delta, metric.WithAttributes(g.attrs...))
+	g.gauge.Add(context.Background(), -delta, metric.WithAttributes(g.attrs...))
 }

@@ -1,6 +1,8 @@
 package metric
 
 import (
+	"context"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
@@ -12,8 +14,8 @@ type otelHistogram struct {
 	attrs     []attribute.KeyValue
 }
 
-// NewOTelHistogram creates a new OpenTelemetry histogram and returns Observer.
-func NewOTelHistogram(name, description string, unit string, buckets ...float64) Observer {
+// newOTelHistogram creates a new OpenTelemetry histogram and returns Observer.
+func newOTelHistogram(name, description string, unit string, buckets ...float64) Observer {
 	meter := getMeter()
 	opts := []metric.Float64HistogramOption{
 		metric.WithDescription(description),
@@ -45,5 +47,5 @@ func (h *otelHistogram) With(lvs ...string) Observer {
 }
 
 func (h *otelHistogram) Observe(value float64) {
-	h.histogram.Record(getContext(), value, metric.WithAttributes(h.attrs...))
+	h.histogram.Record(context.Background(), value, metric.WithAttributes(h.attrs...))
 }
