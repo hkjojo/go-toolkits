@@ -43,7 +43,7 @@ func newOTELExporter(logger Logger, endpoint string, interval time.Duration, ser
 	}
 
 	exporter.init = true
-	logger.Infow("otel exporter initialized", "service", exporter.serviceName)
+	logger.Infow("otel exporter initialized", "service", exporter.serviceName, "endpoint", exporter.endpoint)
 	return exporter
 }
 

@@ -104,9 +104,9 @@ func main() {
 func runBasicTest() {
 	log.Println("=== Running Basic Test ===")
 
-	counter := metric.NewCounter("demo_requests_total", "Total demo requests", "1")
-	gauge := metric.NewGauge("demo_active_connections", "Active demo connections", "1")
-	histogram := metric.NewHistogram("demo_request_duration", "Demo request duration", "s", 0.1, 0.5, 1.0, 2.0, 5.0)
+	counter := metric.NewCounter("", "", "demo_requests_total", "Total demo requests", []string{"1"})
+	gauge := metric.NewGauge("", "", "demo_active_connections", "Active demo connections", []string{"1"})
+	histogram := metric.NewHistogram("", "", "demo_request_duration", "Demo request duration", []string{"s"}, 0.1, 0.5, 1.0, 2.0, 5.0)
 
 	for i := 0; i < 50; i++ {
 		counter.With("method", "GET", "status", "200").Inc()
@@ -119,9 +119,9 @@ func runBasicTest() {
 func runBusinessTest() {
 	log.Println("=== Running Business Test ===")
 
-	userRegistrations := metric.NewCounter("user_registrations_total", "Total user registrations", "1")
-	activeUsers := metric.NewGauge("active_users", "Number of active users", "1")
-	loginDuration := metric.NewHistogram("login_duration", "User login duration", "s", 0.1, 0.5, 1.0, 2.0, 5.0)
+	userRegistrations := metric.NewCounter("", "", "user_registrations_total", "Total user registrations", []string{"1"})
+	activeUsers := metric.NewGauge("", "", "active_users", "Number of active users", []string{"1"})
+	loginDuration := metric.NewHistogram("", "", "login_duration", "User login duration", []string{"s"}, 0.1, 0.5, 1.0, 2.0, 5.0)
 
 	for i := 0; i < 30; i++ {
 		userRegistrations.With("source", "web", "country", "US").Inc()
@@ -134,8 +134,8 @@ func runBusinessTest() {
 func runKratosTest() {
 	log.Println("=== Running Kratos Test ===")
 
-	requestsCounter := metric.NewCounter("server_requests_total", "Total server requests", "1")
-	requestDuration := metric.NewHistogram("server_request_duration", "Server request duration", "s", 0.01, 0.1, 0.5, 1.0, 2.0)
+	requestsCounter := metric.NewCounter("", "", "server_requests_total", "Total server requests", []string{"1"})
+	requestDuration := metric.NewHistogram("", "", "server_request_duration", "Server request duration", []string{"s"}, 0.01, 0.1, 0.5, 1.0, 2.0)
 
 	endpoints := []string{"/api/v1/users", "/api/v1/orders", "/api/v1/products"}
 	methods := []string{"GET", "POST", "PUT"}
@@ -162,8 +162,8 @@ func runAllTests() {
 }
 
 func sendContinuousMetrics() {
-	counter := metric.NewCounter("continuous_requests_total", "Continuous requests", "1")
-	gauge := metric.NewGauge("continuous_active_connections", "Continuous active connections", "1")
+	counter := metric.NewCounter("", "", "continuous_requests_total", "Continuous requests", []string{"1"})
+	gauge := metric.NewGauge("", "", "continuous_active_connections", "Continuous active connections", []string{"1"})
 
 	counter.With("service", "continuous").Inc()
 	gauge.With("service", "continuous").Set(float64(time.Now().Unix() % 1000))
