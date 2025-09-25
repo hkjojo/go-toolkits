@@ -7,15 +7,16 @@ toolchain go1.23.4
 require (
 	github.com/go-kratos/kratos/v2 v2.8.0
 	github.com/google/gops v0.3.28
-	github.com/hkjojo/go-toolkits/metric v1.4.0
 	github.com/urfave/cli/v2 v2.27.4
 	go.opentelemetry.io/otel v1.38.0
-	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.38.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.38.0
 	go.opentelemetry.io/otel/sdk v1.38.0
-	go.opentelemetry.io/otel/sdk/metric v1.38.0
 	go.opentelemetry.io/otel/trace v1.38.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.67.1
+)
+
+replace (
+	github.com/hkjojo/go-toolkits/metric v1.4.0 => ../metric
 )
 
 require (

@@ -12,8 +12,8 @@ type prometheusCounter struct {
 	lvs []string
 }
 
-// NewPrometheusCounter 创建Prometheus计数器
-func NewPrometheusCounter(cv *prometheus.CounterVec) Counter {
+// newPrometheusCounter 创建Prometheus计数器
+func newPrometheusCounter(cv *prometheus.CounterVec) Counter {
 	return &prometheusCounter{
 		cv: cv,
 	}

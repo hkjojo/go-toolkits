@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -14,10 +15,20 @@ import (
 
 var (
 	// 全局配置
-	globalConfig *Config
+	globalConfig = &Config{
+		Mode:         ModeOTEL,
+		Interval:     time.Minute,
+		WithoutUp:    true,
+		CollectStats: false,
+		ServiceName:  "go-tookits",
+	}
 
 	// Prometheus注册器（仅在prometheus模式下使用）
-	prometheusRegistry = prometheus.NewRegistry()
+	prometheusRegistry *prometheus.Registry
+
+	// Global meter instance (used by OTEL)
+	globalMeter metric.Meter
+	meterOnce   sync.Once
 
 	// 运行时指标收集器
 	runtimeGauge Gauge
@@ -26,12 +37,6 @@ var (
 
 // Start 启动metric采集
 func Start(logger Logger, options ...Option) (func(), error) {
-	globalConfig = &Config{
-		Mode:     ModeOTEL, // 默认使用OTEL模式
-		Interval: time.Minute,
-	}
-
-	// 应用选项
 	for _, option := range options {
 		option(globalConfig)
 	}
@@ -40,6 +45,7 @@ func Start(logger Logger, options ...Option) (func(), error) {
 		switch globalConfig.Mode {
 		case ModeLog:
 			exporter = newJSONLoggerExporter(logger)
+			prometheusRegistry = prometheus.NewRegistry()
 		case ModeOpenObserve:
 			// 创建OpenObserve导出器选项
 			exporter = newOpenobserveExporter(logger,
@@ -47,6 +53,7 @@ func Start(logger Logger, options ...Option) (func(), error) {
 				globalConfig.ServiceName,
 				globalConfig.StreamName,
 			)
+			prometheusRegistry = prometheus.NewRegistry()
 		case ModeOTEL:
 			// 创建OTEL导出器选项
 			exporter = newOTELExporter(
@@ -76,17 +83,16 @@ func Start(logger Logger, options ...Option) (func(), error) {
 		registerStatsMetric()
 	}
 
-	// 启动定时采集
-	ticker := time.NewTicker(globalConfig.Interval)
-	go func() {
-		for range ticker.C {
-			collectMetrics()
-		}
-	}()
+	collector := &Collector{
+		ticker:   time.NewTicker(globalConfig.Interval),
+		wg:       sync.WaitGroup{},
+		stopChan: make(chan struct{}),
+	}
+	collector.Start()
 
 	// 返回停止函数
 	return func() {
-		ticker.Stop()
+		collector.Stop()
 		if exporter != nil {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
@@ -125,17 +131,7 @@ func collectMetrics() {
 func registerUpMetric() {
 	switch globalConfig.Mode {
 	case ModeOTEL:
-		// OpenTelemetry模式
-		meter := otel.Meter("go-toolkits/metric")
-		gauge, err := meter.Float64UpDownCounter(
-			"up",
-			metric.WithDescription("the service up status"),
-			metric.WithUnit("1"),
-		)
-		if err == nil {
-			runtimeGauge = &otelGauge{gauge: gauge}
-			runtimeGauge.With("go_version", runtime.Version()).Set(1)
-		}
+		newOTelGauge("up", "the service up status", []string{"go_version"}).Set(1)
 	case ModeLog, ModeOpenObserve:
 		// Prometheus模式
 		gaugeVec := prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -143,8 +139,8 @@ func registerUpMetric() {
 			Help: "the service up status",
 		}, []string{"go_version"})
 		prometheusRegistry.MustRegister(gaugeVec)
-		runtimeGauge = &prometheusGauge{gv: gaugeVec}
-		runtimeGauge.With(runtime.Version()).Set(1)
+		gauge := newPrometheusGauge(gaugeVec)
+		gauge.With(runtime.Version()).Set(1)
 	}
 }
 
@@ -152,16 +148,7 @@ func registerUpMetric() {
 func registerStatsMetric() {
 	switch globalConfig.Mode {
 	case ModeOTEL:
-		// OpenTelemetry模式
-		meter := otel.Meter("go-toolkits/metric")
-		gauge, err := meter.Float64UpDownCounter(
-			"runtime",
-			metric.WithDescription("the service runtime stats"),
-			metric.WithUnit("1"),
-		)
-		if err == nil {
-			runtimeGauge = &otelGauge{gauge: gauge}
-		}
+		runtimeGauge = newOTelGauge("runtime", "the service runtime stats", []string{"stats"})
 	case ModeLog, ModeOpenObserve:
 		// Prometheus模式
 		gaugeVec := prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -169,7 +156,7 @@ func registerStatsMetric() {
 			Help: "the service runtime stats",
 		}, []string{"stats"})
 		prometheusRegistry.MustRegister(gaugeVec)
-		runtimeGauge = &prometheusGauge{gv: gaugeVec}
+		runtimeGauge = newPrometheusGauge(gaugeVec)
 	}
 }
 
@@ -183,119 +170,149 @@ func collectRuntimeStats() {
 	numCgoCall := runtime.NumCgoCall()
 	var stats runtime.MemStats
 	runtime.ReadMemStats(&stats)
-
-	switch globalConfig.Mode {
-	case ModeOTEL:
-		// OpenTelemetry模式
-		runtimeGauge.With("stats", "num_goroutines").Set(float64(numRoutines))
-		runtimeGauge.With("stats", "num_cgo_call").Set(float64(numCgoCall))
-		runtimeGauge.With("stats", "sys_bytes").Set(float64(stats.Sys))
-		runtimeGauge.With("stats", "malloc_count").Set(float64(stats.Mallocs))
-		runtimeGauge.With("stats", "free_count").Set(float64(stats.Frees))
-		runtimeGauge.With("stats", "alloc_bytes").Set(float64(stats.Alloc))
-		runtimeGauge.With("stats", "heap_objects").Set(float64(stats.HeapObjects))
-		runtimeGauge.With("stats", "stack_sys_bytes").Set(float64(stats.StackSys))
-		runtimeGauge.With("stats", "total_gc_pause_ns").Set(float64(stats.PauseTotalNs))
-		runtimeGauge.With("stats", "total_gc_runs").Set(float64(stats.NumGC))
-	case ModeLog, ModeOpenObserve:
-		// Prometheus模式
-		runtimeGauge.With("num_goroutines").Set(float64(numRoutines))
-		runtimeGauge.With("num_cgo_call").Set(float64(numCgoCall))
-		runtimeGauge.With("sys_bytes").Set(float64(stats.Sys))
-		runtimeGauge.With("malloc_count").Set(float64(stats.Mallocs))
-		runtimeGauge.With("free_count").Set(float64(stats.Frees))
-		runtimeGauge.With("alloc_bytes").Set(float64(stats.Alloc))
-		runtimeGauge.With("heap_objects").Set(float64(stats.HeapObjects))
-		runtimeGauge.With("stack_sys_bytes").Set(float64(stats.StackSys))
-		runtimeGauge.With("total_gc_pause_ns").Set(float64(stats.PauseTotalNs))
-		runtimeGauge.With("total_gc_runs").Set(float64(stats.NumGC))
-	}
-}
-
-// MustRegister 注册Prometheus收集器（仅在Prometheus模式下有效）
-func MustRegister(collector prometheus.Collector) {
-	if globalConfig != nil && (globalConfig.Mode == ModeLog || globalConfig.Mode == ModeOpenObserve) {
-		prometheusRegistry.MustRegister(collector)
-	}
+	runtimeGauge.With("num_goroutines").Set(float64(numRoutines))
+	runtimeGauge.With("num_cgo_call").Set(float64(numCgoCall))
+	runtimeGauge.With("sys_bytes").Set(float64(stats.Sys))
+	runtimeGauge.With("malloc_count").Set(float64(stats.Mallocs))
+	runtimeGauge.With("free_count").Set(float64(stats.Frees))
+	runtimeGauge.With("alloc_bytes").Set(float64(stats.Alloc))
+	runtimeGauge.With("heap_objects").Set(float64(stats.HeapObjects))
+	runtimeGauge.With("stack_sys_bytes").Set(float64(stats.StackSys))
+	runtimeGauge.With("total_gc_pause_ns").Set(float64(stats.PauseTotalNs))
+	runtimeGauge.With("total_gc_runs").Set(float64(stats.NumGC))
 }
 
 // NewCounter 创建计数器
-func NewCounter(name, description, unit string) Counter {
-	if globalConfig == nil {
-		// 默认使用OTEL模式
-		return newOTelCounter(name, description, unit)
-	}
-
+func NewCounter(namespace, subsystem, name, description string, labelNames []string) Counter {
 	switch globalConfig.Mode {
 	case ModeLog, ModeOpenObserve:
 		counterVec := prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: name,
-			Help: description,
-		}, []string{})
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      name,
+			Help:      description,
+		}, labelNames)
 		prometheusRegistry.MustRegister(counterVec)
-		return &prometheusCounter{cv: counterVec}
+		return newPrometheusCounter(counterVec)
 	default:
-		return newOTelCounter(name, description, unit)
+		fullName := name
+		if namespace != "" && subsystem != "" {
+			fullName = namespace + "_" + subsystem + "_" + name
+		} else if namespace != "" {
+			fullName = namespace + "_" + name
+		} else if subsystem != "" {
+			fullName = subsystem + "_" + name
+		}
+		return newOTelCounter(fullName, description, labelNames)
 	}
 }
 
 // NewGauge 创建仪表盘
-func NewGauge(name, description, unit string) Gauge {
-	if globalConfig == nil {
-		// 默认使用OTEL模式
-		return newOTelGauge(name, description, unit)
-	}
-
+func NewGauge(namespace, subsystem, name, description string, labelNames []string) Gauge {
 	switch globalConfig.Mode {
 	case ModeLog, ModeOpenObserve:
 		gaugeVec := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: name,
-			Help: description,
-		}, []string{})
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      name,
+			Help:      description,
+		}, labelNames)
 		prometheusRegistry.MustRegister(gaugeVec)
-		return &prometheusGauge{gv: gaugeVec}
+		return newPrometheusGauge(gaugeVec)
 	default:
-		return newOTelGauge(name, description, unit)
+		fullName := name
+		if namespace != "" && subsystem != "" {
+			fullName = namespace + "_" + subsystem + "_" + name
+		} else if namespace != "" {
+			fullName = namespace + "_" + name
+		} else if subsystem != "" {
+			fullName = subsystem + "_" + name
+		}
+		return newOTelGauge(fullName, description, labelNames)
 	}
 }
 
 // NewHistogram 创建直方图
-func NewHistogram(name, description, unit string, buckets ...float64) Observer {
-	if globalConfig == nil {
-		// 默认使用OTEL模式
-		return newOTelHistogram(name, description, unit, buckets...)
-	}
-
+func NewHistogram(namespace, subsystem, name, description string, labelNames []string, buckets ...float64) Observer {
 	switch globalConfig.Mode {
 	case ModeLog, ModeOpenObserve:
 		histogramVec := prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Name:    name,
-			Help:    description,
-			Buckets: buckets,
-		}, []string{})
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      name,
+			Help:      description,
+			Buckets:   buckets,
+		}, labelNames)
 		prometheusRegistry.MustRegister(histogramVec)
-		return &prometheusHistogram{hv: histogramVec}
+		return newPrometheusHistogram(histogramVec)
 	default:
-		return newOTelHistogram(name, description, unit, buckets...)
+		fullName := name
+		if namespace != "" && subsystem != "" {
+			fullName = namespace + "_" + subsystem + "_" + name
+		} else if namespace != "" {
+			fullName = namespace + "_" + name
+		} else if subsystem != "" {
+			fullName = subsystem + "_" + name
+		}
+		return newOTelHistogram(fullName, description, labelNames, buckets...)
 	}
 }
 
 // NewSummary 创建摘要
-func NewSummary(name, description, unit string) Observer {
-	if globalConfig == nil {
-		// 默认使用OTEL模式
-		return newOTelSummary(name, description, unit)
-	}
-
+func NewSummary(namespace, subsystem, name, description string, labelNames []string) Observer {
 	switch globalConfig.Mode {
 	case ModeLog, ModeOpenObserve:
 		summaryVec := prometheus.NewSummaryVec(prometheus.SummaryOpts{
-			Name: name,
-			Help: description,
-		}, []string{})
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      name,
+			Help:      description,
+		}, labelNames)
 		prometheusRegistry.MustRegister(summaryVec)
-		return &prometheusSummary{sv: summaryVec}
+		return newPrometheusSummary(summaryVec)
 	default:
-		return newOTelSummary(name, description, unit)
+		fullName := name
+		if namespace != "" && subsystem != "" {
+			fullName = namespace + "_" + subsystem + "_" + name
+		} else if namespace != "" {
+			fullName = namespace + "_" + name
+		} else if subsystem != "" {
+			fullName = subsystem + "_" + name
+		}
+		return newOTelSummary(fullName, description, "1", labelNames)
 	}
+}
+
+func getMeter() metric.Meter {
+	meterOnce.Do(func() {
+		globalMeter = otel.Meter(globalConfig.ServiceName)
+	})
+	return globalMeter
+}
+
+type Collector struct {
+	ticker   *time.Ticker
+	stopChan chan struct{}
+	wg       sync.WaitGroup
+}
+
+func (mc *Collector) Start() {
+	mc.wg.Add(1)
+	go func() {
+		defer mc.wg.Done()
+		for {
+			select {
+			case <-mc.ticker.C:
+				collectMetrics()
+			case <-mc.stopChan:
+				return
+			}
+		}
+	}()
+}
+
+func (mc *Collector) Stop() {
+	close(mc.stopChan)
+	mc.ticker.Stop()
+	mc.wg.Wait()
 }

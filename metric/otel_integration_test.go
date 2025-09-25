@@ -3,11 +3,12 @@ package metric
 import (
 	"log"
 	"os"
+	"testing"
 	"time"
 )
 
 // TestOTELIntegration 测试OTEL集成
-func TestOTELIntegration() {
+func TestOTELIntegration(t *testing.T) {
 	// 设置环境变量（可选）
 	os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
 	os.Setenv("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc")
@@ -36,10 +37,10 @@ func TestOTELIntegration() {
 	log.Println("Sending metrics to OTEL collector at localhost:4317...")
 
 	// 创建各种类型的指标
-	counter := NewCounter("test_requests_total", "Total number of test requests", "1")
-	gauge := NewGauge("test_active_connections", "Number of active test connections", "1")
-	histogram := NewHistogram("test_request_duration", "Test request duration", "s", 0.1, 0.5, 1.0, 2.0, 5.0)
-	summary := NewSummary("test_response_size", "Test response size", "bytes")
+	counter := NewCounter("", "", "test_requests_total", "Total number of test requests", []string{"method", "status"})
+	gauge := NewGauge("", "", "test_active_connections", "Number of active test connections", []string{"service", "instance"})
+	histogram := NewHistogram("", "", "test_request_duration", "Test request duration", []string{"endpoint", "method"}, 0.1, 0.5, 1.0, 2.0, 5.0)
+	summary := NewSummary("", "", "test_response_size", "Test response size", []string{"endpoint", "method"})
 
 	// 模拟业务操作，发送各种指标
 	for i := 0; i < 100; i++ {
@@ -77,7 +78,7 @@ func TestOTELIntegration() {
 }
 
 // TestOTELWithCustomMetrics 测试自定义业务指标
-func TestOTELWithCustomMetrics() {
+func TestOTELWithCustomMetrics(t *testing.T) {
 	logger := &testLogger{}
 
 	stop, err := Start(
@@ -96,46 +97,46 @@ func TestOTELWithCustomMetrics() {
 	log.Println("Testing business metrics with OTEL...")
 
 	// 业务指标
-	userRegistrations := NewCounter("user_registrations_total", "Total user registrations", "1")
-	activeUsers := NewGauge("active_users", "Number of active users", "1")
-	loginDuration := NewHistogram("login_duration", "User login duration", "s", 0.1, 0.5, 1.0, 2.0, 5.0)
-	apiLatency := NewSummary("api_latency", "API response latency", "ms")
+	userRegistrations := NewCounter("", "", "user_registrations_total", "Total user registrations", []string{"source", "country"})
+	activeUsers := NewGauge("", "", "active_users", "Number of active users", []string{"region"})
+	loginDuration := NewHistogram("", "", "login_duration", "User login duration", []string{"method", "success"}, 0.1, 0.5, 1.0, 2.0, 5.0)
+	apiLatency := NewSummary("", "", "api_latency", "API response latency", []string{"endpoint", "method"})
 
 	// 模拟用户注册
 	for i := 0; i < 50; i++ {
-		userRegistrations.With("source", "web", "country", "US").Inc()
-		userRegistrations.With("source", "mobile", "country", "CN").Inc()
-		userRegistrations.With("source", "web", "country", "EU").Add(2)
+		userRegistrations.With("web", "US").Inc()
+		userRegistrations.With("mobile", "CN").Inc()
+		userRegistrations.With("web", "EU").Add(2)
 	}
 
 	// 模拟活跃用户数变化
 	for i := 0; i < 30; i++ {
-		activeUsers.With("region", "us-east").Set(float64(1000 + i*10))
-		activeUsers.With("region", "us-west").Set(float64(800 + i*8))
+		activeUsers.With("us-east").Set(float64(1000 + i*10))
+		activeUsers.With("us-west").Set(float64(800 + i*8))
 		activeUsers.With("region", "eu-west").Set(float64(1200 + i*12))
 	}
 
 	// 模拟登录时长
 	for i := 0; i < 100; i++ {
 		duration := float64(i%50) / 10.0 // 0.0 到 4.9 秒
-		loginDuration.With("method", "password", "success", "true").Observe(duration)
-		loginDuration.With("method", "oauth", "success", "true").Observe(duration * 0.8)
-		loginDuration.With("method", "password", "success", "false").Observe(duration * 1.5)
+		loginDuration.With("password", "true").Observe(duration)
+		loginDuration.With("oauth", "true").Observe(duration * 0.8)
+		loginDuration.With("password", "false").Observe(duration * 1.5)
 	}
 
 	// 模拟API延迟
 	for i := 0; i < 200; i++ {
 		latency := float64(10 + i%100) // 10ms 到 109ms
-		apiLatency.With("endpoint", "/api/v1/users", "method", "GET").Observe(latency)
-		apiLatency.With("endpoint", "/api/v1/orders", "method", "POST").Observe(latency * 1.2)
-		apiLatency.With("endpoint", "/api/v1/products", "method", "GET").Observe(latency * 0.9)
+		apiLatency.With("/api/v1/users", "GET").Observe(latency)
+		apiLatency.With("/api/v1/orders", "POST").Observe(latency * 1.2)
+		apiLatency.With("/api/v1/products", "GET").Observe(latency * 0.9)
 	}
 
 	log.Println("Business metrics test completed!")
 }
 
 // TestOTELKratosMiddleware 测试Kratos中间件集成
-func TestOTELKratosMiddleware() {
+func TestOTELKratosMiddleware(t *testing.T) {
 	logger := &testLogger{}
 
 	stop, err := Start(
@@ -154,8 +155,8 @@ func TestOTELKratosMiddleware() {
 	log.Println("Testing Kratos middleware with OTEL...")
 
 	// 创建Kratos中间件使用的指标
-	requestsCounter := NewCounter("server_requests_total", "Total number of server requests", "1")
-	requestDuration := NewHistogram("server_request_duration", "Server request duration", "s", 0.01, 0.1, 0.5, 1.0, 2.0, 5.0)
+	requestsCounter := NewCounter("", "", "server_requests_total", "Total number of server requests", []string{"method", "endpoint", "status"})
+	requestDuration := NewHistogram("", "", "server_request_duration", "Server request duration", []string{"method", "endpoint"}, 0.01, 0.1, 0.5, 1.0, 2.0, 5.0)
 
 	// 模拟HTTP请求
 	endpoints := []string{"/api/v1/users", "/api/v1/orders", "/api/v1/products", "/api/v1/payments"}
@@ -168,11 +169,11 @@ func TestOTELKratosMiddleware() {
 		statusCode := statusCodes[i%len(statusCodes)]
 
 		// 记录请求计数
-		requestsCounter.With("method", method, "endpoint", endpoint, "status", statusCode).Inc()
+		requestsCounter.With(method, endpoint, statusCode).Inc()
 
 		// 记录请求时长
 		duration := float64(i%100) / 100.0 // 0.0 到 0.99 秒
-		requestDuration.With("method", method, "endpoint", endpoint).Observe(duration)
+		requestDuration.With(method, endpoint).Observe(duration)
 
 		if i%20 == 0 {
 			log.Printf("Simulated %d HTTP requests...", i+1)
@@ -197,15 +198,15 @@ func (t *testLogger) Infow(msg string, args ...interface{}) {
 	log.Printf("[INFO] %s %v", msg, args)
 }
 
-// RunAllTests 运行所有测试
-func RunAllTests() {
+// RunAll 运行所有测试
+func TestRunAll(t *testing.T) {
 	log.Println("Starting OTEL integration tests...")
 	log.Println("Make sure your OTEL collector is running at localhost:4317")
 	log.Println("")
 
 	// 测试1: 基本OTEL集成
 	log.Println("=== Test 1: Basic OTEL Integration ===")
-	TestOTELIntegration()
+	TestOTELIntegration(t)
 	log.Println("")
 
 	// 等待一下
@@ -213,7 +214,7 @@ func RunAllTests() {
 
 	// 测试2: 自定义业务指标
 	log.Println("=== Test 2: Custom Business Metrics ===")
-	TestOTELWithCustomMetrics()
+	TestOTELWithCustomMetrics(t)
 	log.Println("")
 
 	// 等待一下
@@ -221,7 +222,7 @@ func RunAllTests() {
 
 	// 测试3: Kratos中间件集成
 	log.Println("=== Test 3: Kratos Middleware Integration ===")
-	TestOTELKratosMiddleware()
+	TestOTELKratosMiddleware(t)
 	log.Println("")
 
 	log.Println("All tests completed!")

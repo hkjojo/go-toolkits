@@ -12,8 +12,8 @@ type prometheusHistogram struct {
 	lvs []string
 }
 
-// NewPrometheusHistogram 创建Prometheus直方图
-func NewPrometheusHistogram(hv *prometheus.HistogramVec) Observer {
+// newPrometheusHistogram 创建Prometheus直方图
+func newPrometheusHistogram(hv *prometheus.HistogramVec) Observer {
 	return &prometheusHistogram{
 		hv: hv,
 	}

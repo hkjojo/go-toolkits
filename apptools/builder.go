@@ -2,13 +2,10 @@ package apptools
 
 import (
 	"os"
-	"time"
 
 	"github.com/go-kratos/kratos/v2/config"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/gops/agent"
-	tlogk "github.com/hkjojo/go-toolkits/log/v2/kratos"
-	"github.com/hkjojo/go-toolkits/metric"
 	"github.com/urfave/cli/v2"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
@@ -18,7 +15,6 @@ import (
 type (
 	NewSourceFunc             func() config.Source
 	NewOtelTracerProviderFunc func() (trace.TracerProvider, func(), error)
-	NewOtelMetricProviderFunc func() (metric.MeterProvider, func(), error)
 	NewLogFunc                func() (log.Logger, error)
 	NewAppFunc                func(*App) (func(), error)
 )
@@ -27,19 +23,16 @@ type Builder struct {
 	app           *cli.App
 	cfgs          []interface{}
 	tpFactory     NewOtelTracerProviderFunc
-	mpFactory     NewOtelMetricProviderFunc
 	logFactory    NewLogFunc
 	sourceFactory NewSourceFunc
 	funcs         []NewAppFunc
 
-	metricMode metric.Mode
 	enableGops bool
 }
 
 type App struct {
 	logger log.Logger
 	tp     trace.TracerProvider
-	mp     metric.MeterProvider
 	source config.Config
 }
 
@@ -60,11 +53,6 @@ func NewBuilder() *Builder {
 
 func (b *Builder) AddOtelTraceProvider(f NewOtelTracerProviderFunc) *Builder {
 	b.tpFactory = f
-	return b
-}
-
-func (b *Builder) AddOtelMetricProvider(f NewOtelMetricProviderFunc) *Builder {
-	b.mpFactory = f
 	return b
 }
 
@@ -111,11 +99,6 @@ func (b *Builder) WithGops() *Builder {
 	return b
 }
 
-func (b *Builder) WithMetric(mode metric.Mode) *Builder {
-	b.metricMode = mode
-	return b
-}
-
 // Build return cleanup function and error
 func (b *Builder) Build() (*App, func(), error) {
 	app := &App{}
@@ -159,29 +142,10 @@ func (b *Builder) Build() (*App, func(), error) {
 		if err != nil {
 			return nil, nil, err
 		}
-		if tp != nil {
-			app.tp = tp
-			otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
-				propagation.TraceContext{}, propagation.Baggage{}))
-			otel.SetTracerProvider(app.tp)
-		}
-		cleanups = append(cleanups, cleanup)
-	}
-
-	// init metric provider
-	if b.metricMode != "" {
-		metric.Start(
-			metric.WithInterval(time.Second*10),
-			metric.WithOpenobserveWriter(tlogk.NewHelper(WithMetaKeys(app.Logger()))),
-		)
-		mp, cleanup, err := b.mpFactory()
-		if err != nil {
-			return nil, nil, err
-		}
-		if mp != nil {
-			app.mp = mp
-			otel.SetMeterProvider(app.mp)
-		}
+		app.tp = tp
+		otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+			propagation.TraceContext{}, propagation.Baggage{}))
+		otel.SetTracerProvider(app.tp)
 		cleanups = append(cleanups, cleanup)
 	}
 

@@ -24,7 +24,7 @@ func (w *jsonLoggerExporter) Export(mf *dto.MetricFamily) {
 
 // OnError 处理错误
 func (w *jsonLoggerExporter) OnError(err error) {
-	w.logger.Infow("metric_internal_error", "error", err)
+	w.logger.Errorw("metric_internal_error", "error", err)
 }
 
 // Shutdown 优雅关闭（JSON日志导出器无需特殊关闭操作）

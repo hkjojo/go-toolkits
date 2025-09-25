@@ -10,39 +10,39 @@ import (
 var _ Observer = (*otelHistogram)(nil)
 
 type otelHistogram struct {
-	histogram metric.Float64Histogram
-	attrs     []attribute.KeyValue
+	histogram  metric.Float64Histogram
+	labelNames []string
+	attrs      []attribute.KeyValue
 }
 
 // newOTelHistogram creates a new OpenTelemetry histogram and returns Observer.
-func newOTelHistogram(name, description string, unit string, buckets ...float64) Observer {
-	meter := getMeter()
+func newOTelHistogram(name, description string, labelNames []string, buckets ...float64) Observer {
 	opts := []metric.Float64HistogramOption{
 		metric.WithDescription(description),
-		metric.WithUnit(unit),
 	}
 	if len(buckets) > 0 {
 		opts = append(opts, metric.WithExplicitBucketBoundaries(buckets...))
 	}
-	histogram, err := meter.Float64Histogram(name, opts...)
+	histogram, err := getMeter().Float64Histogram(name, opts...)
 	if err != nil {
 		panic(err)
 	}
 	return &otelHistogram{
-		histogram: histogram,
+		histogram:  histogram,
+		labelNames: labelNames,
 	}
 }
 
-func (h *otelHistogram) With(lvs ...string) Observer {
-	attrs := make([]attribute.KeyValue, 0, len(lvs)/2)
-	for i := 0; i < len(lvs); i += 2 {
-		if i+1 < len(lvs) {
-			attrs = append(attrs, attribute.String(lvs[i], lvs[i+1]))
-		}
+func (h *otelHistogram) With(labelValues ...string) Observer {
+	maxIndex := min(len(labelValues), len(h.labelNames))
+	attrs := make([]attribute.KeyValue, 0, maxIndex)
+	for i := 0; i < maxIndex; i++ {
+		attrs = append(attrs, attribute.String(h.labelNames[i], labelValues[i]))
 	}
 	return &otelHistogram{
-		histogram: h.histogram,
-		attrs:     attrs,
+		histogram:  h.histogram,
+		labelNames: h.labelNames,
+		attrs:      attrs,
 	}
 }
 

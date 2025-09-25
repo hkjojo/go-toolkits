@@ -12,8 +12,8 @@ type prometheusGauge struct {
 	lvs []string
 }
 
-// NewPrometheusGauge 创建Prometheus仪表盘
-func NewPrometheusGauge(gv *prometheus.GaugeVec) Gauge {
+// newPrometheusGauge 创建Prometheus仪表盘
+func newPrometheusGauge(gv *prometheus.GaugeVec) Gauge {
 	return &prometheusGauge{
 		gv: gv,
 	}

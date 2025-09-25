@@ -28,61 +28,13 @@ func IntInSlice(v int, list []int) bool {
 	return false
 }
 
-// Match pattern compatible MT wildcard pattern
-// see test cases for usage
-func Match(value, pattern string) bool {
-	if pattern == "" {
-		return false
-	}
-	for _, exp := range strings.Split(pattern, ",") {
-		if len(exp) == 0 {
-			continue
-		}
-
-		var reverse, ok bool
-		if exp[:1] == "!" {
-			exp = exp[1:]
-			reverse = true
-		}
-
-		if exp != "*" {
-			// replace regexp
-			prefix := strings.HasPrefix(exp, "*")
-			suffix := strings.HasSuffix(exp, "*")
-			exp = strings.Replace(exp, "*", "", -1)
-			switch {
-			case prefix && !suffix:
-				ok = strings.HasSuffix(value, exp)
-			case !prefix && suffix:
-				ok = strings.HasPrefix(value, exp)
-			case prefix && suffix:
-				ok = strings.Contains(value, exp)
-			default:
-				ok = value == exp
-			}
-		} else {
-			ok = true
-		}
-
-		if reverse && ok {
-			return false
-			// ok = !ok
-		}
-
-		if ok {
-			return true
-		}
-	}
-	return false
-}
-
-// MatchIE match ignore case
-func MatchIE(value, pattern string) bool {
+// MatchCaseInsensitive 功能与Match相同，但不区分大小写
+func MatchCaseInsensitive(value, pattern string) bool {
 	return Match(strings.ToLower(value), strings.ToLower(pattern))
 }
 
-// TODO: remove next version, use Match instead
 // Any pattern is ||
+// NOTE: Deprecated, use Match instead
 func Any(value, pattern string) bool {
 	if pattern == "" {
 		return false
@@ -127,8 +79,8 @@ func Any(value, pattern string) bool {
 	return false
 }
 
-// TODO: remove next version, use Match instead
 // AnyIE match ignore case, pattern is ||
+// NOTE: Deprecated, use MatchCaseInsensitive instead
 func AnyIE(value, pattern string) bool {
 	return Any(strings.ToLower(value), strings.ToLower(pattern))
 }
@@ -197,85 +149,140 @@ func Round(f float64, digits int) float64 {
 	return math.Round(p) / p10
 }
 
-func MatchV2(value, pattern string) bool {
-	if pattern == "" {
+// Match 高性能版本的掩码匹配函数，与MT5匹配逻辑一致
+// 集成了所有性能优化策略，提供最佳性能
+//
+// 参数:
+//
+//	value: 要检查的字符串
+//	pattern: 掩码列表，用逗号分隔，支持通配符 '*' 和排除符 '!'
+//
+// 返回值:
+//
+//	bool: 如果字符串匹配掩码列表则返回true，否则返回false
+//
+// 掩码规则:
+//   - '*' 匹配任意字符序列
+//   - '!' 前缀表示排除该模式
+//   - 多个掩码用逗号分隔
+//   - 空格会被忽略
+//
+// 性能特点:
+//   - 零内存分配
+//   - 针对常见模式进行特殊优化
+//   - 使用迭代算法避免递归开销
+func Match(value, pattern string) bool {
+	// 检查输入参数
+	if pattern == "" || value == "" {
 		return false
 	}
 
-	// 分离排除规则和包含规则
-	var excludePatterns, includePatterns []string
+	found := false
+	// 优化：避免strings.Split，直接遍历字符串
+	start := 0
+	for i := 0; i <= len(pattern); i++ {
+		if i == len(pattern) || pattern[i] == ',' {
+			// 提取当前token
+			token := pattern[start:i]
+			start = i + 1
 
-	for _, exp := range strings.Split(pattern, ",") {
-		exp = strings.TrimSpace(exp)
-		if exp == "" {
-			continue
-		}
+			// 去除前后空格
+			tokenStart, tokenEnd := 0, len(token)
+			for tokenStart < tokenEnd && token[tokenStart] == ' ' {
+				tokenStart++
+			}
+			for tokenEnd > tokenStart && token[tokenEnd-1] == ' ' {
+				tokenEnd--
+			}
 
-		if strings.HasPrefix(exp, "!") {
-			excludePatterns = append(excludePatterns, exp[1:])
-		} else {
-			includePatterns = append(includePatterns, exp)
+			if tokenStart == tokenEnd {
+				continue
+			}
+
+			mask := token[tokenStart:tokenEnd]
+
+			// 检查排除模式 (!)
+			if len(mask) > 0 && mask[0] == '!' {
+				if MatchSingle(value, mask[1:]) {
+					return false // 如果匹配排除模式，直接返回false
+				}
+			} else {
+				// 检查包含模式
+				if MatchSingle(value, mask) {
+					found = true
+				}
+			}
 		}
 	}
 
-	// 先检查排除规则（且逻辑）
-	for _, exp := range excludePatterns {
-		if wildcardMatch(value, exp) {
-			return false
-		}
-	}
-
-	// 后检查包含规则（或逻辑）
-	for _, exp := range includePatterns {
-		if wildcardMatch(value, exp) {
-			return true
-		}
-	}
-
-	// 特殊处理纯排除规则的情况
-	return len(includePatterns) == 0 && len(excludePatterns) > 0
+	return found
 }
 
-// 高性能通配符匹配（支持 * 在任意位置）
-func wildcardMatch(s, pattern string) bool {
-	// 空模式只匹配空字符串
-	if pattern == "" {
-		return s == ""
+// MatchSingle 高性能版本的模板匹配函数，单个匹配
+func MatchSingle(value, expr string) bool {
+	// 检查输入参数
+	if expr == "" || value == "" {
+		return false
 	}
 
-	// 完全匹配星号
-	if pattern == "*" {
+	// 特殊处理：完全匹配星号
+	if expr == "*" {
 		return true
 	}
 
-	// 拆解模式结构
-	parts := strings.Split(pattern, "*")
-	if len(parts) == 1 {
-		return s == pattern
+	// 针对常见模式进行优化
+	switch {
+	case !strings.Contains(expr, "*"):
+		// 没有通配符，直接字符串比较
+		return value == expr
+	case strings.HasPrefix(expr, "*") && strings.HasSuffix(expr, "*") && !strings.Contains(expr[1:len(expr)-1], "*"):
+		// 模式：*text*，使用strings.Contains
+		return strings.Contains(value, expr[1:len(expr)-1])
+	case strings.HasPrefix(expr, "*") && !strings.Contains(expr[1:], "*"):
+		// 模式：*text，使用strings.HasSuffix
+		return strings.HasSuffix(value, expr[1:])
+	case strings.HasSuffix(expr, "*") && !strings.Contains(expr[:len(expr)-1], "*"):
+		// 模式：text*，使用strings.HasPrefix
+		return strings.HasPrefix(value, expr[:len(expr)-1])
+	default:
+		// 复杂模式，使用迭代算法
+		return matchIterative(value, expr)
 	}
+}
 
-	// 检查前缀和后缀
-	if !strings.HasPrefix(s, parts[0]) {
-		return false
-	}
-	if !strings.HasSuffix(s, parts[len(parts)-1]) {
-		return false
-	}
+// matchIterative 高性能迭代版本的匹配算法
+// 使用两个指针和回溯机制，避免递归调用
+// 时间复杂度：O(m*n)，空间复杂度：O(1)
+func matchIterative(value, expr string) bool {
+	vLen, eLen := len(value), len(expr)
+	vIdx, eIdx := 0, 0
+	backtrackV, backtrackE := -1, -1
 
-	// 检查中间部分
-	start := len(parts[0])
-	end := len(s) - len(parts[len(parts)-1])
-	for i := 1; i < len(parts)-1; i++ {
-		part := parts[i]
-		if part == "" {
-			continue
-		}
-		index := strings.Index(s[start:end], part)
-		if index == -1 {
+	for vIdx < vLen {
+		if eIdx < eLen && expr[eIdx] == '*' {
+			// 遇到通配符，记录回溯点
+			backtrackV = vIdx
+			backtrackE = eIdx
+			eIdx++
+		} else if eIdx < eLen && expr[eIdx] == value[vIdx] {
+			// 字符匹配
+			vIdx++
+			eIdx++
+		} else if backtrackE != -1 {
+			// 回溯到上一个通配符位置
+			backtrackV++
+			vIdx = backtrackV
+			eIdx = backtrackE + 1
+		} else {
+			// 无法匹配
 			return false
 		}
-		start += index + len(part)
 	}
 
-	return true
+	// 跳过表达式末尾的通配符
+	for eIdx < eLen && expr[eIdx] == '*' {
+		eIdx++
+	}
+
+	return eIdx == eLen
 }

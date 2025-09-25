@@ -12,8 +12,8 @@ type prometheusSummary struct {
 	lvs []string
 }
 
-// NewPrometheusSummary 创建Prometheus摘要
-func NewPrometheusSummary(sv *prometheus.SummaryVec) Observer {
+// newPrometheusSummary 创建Prometheus摘要
+func newPrometheusSummary(sv *prometheus.SummaryVec) Observer {
 	return &prometheusSummary{
 		sv: sv,
 	}

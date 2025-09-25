@@ -10,36 +10,36 @@ import (
 var _ Counter = (*otelCounter)(nil)
 
 type otelCounter struct {
-	counter metric.Float64Counter
-	attrs   []attribute.KeyValue
+	counter    metric.Float64Counter
+	labelNames []string
+	attrs      []attribute.KeyValue
 }
 
 // newOTelCounter creates a new OpenTelemetry counter and returns Counter.
-func newOTelCounter(name, description string, unit string) Counter {
-	meter := getMeter()
-	counter, err := meter.Float64Counter(
+func newOTelCounter(name, description string, labelNames []string) Counter {
+	counter, err := getMeter().Float64Counter(
 		name,
 		metric.WithDescription(description),
-		metric.WithUnit(unit),
 	)
 	if err != nil {
 		panic(err)
 	}
 	return &otelCounter{
-		counter: counter,
+		counter:    counter,
+		labelNames: labelNames,
 	}
 }
 
-func (c *otelCounter) With(lvs ...string) Counter {
-	attrs := make([]attribute.KeyValue, 0, len(lvs)/2)
-	for i := 0; i < len(lvs); i += 2 {
-		if i+1 < len(lvs) {
-			attrs = append(attrs, attribute.String(lvs[i], lvs[i+1]))
-		}
+func (c *otelCounter) With(labelValues ...string) Counter {
+	maxIndex := min(len(labelValues), len(c.labelNames))
+	attrs := make([]attribute.KeyValue, 0, maxIndex)
+	for i := 0; i < maxIndex; i++ {
+		attrs = append(attrs, attribute.String(c.labelNames[i], labelValues[i]))
 	}
 	return &otelCounter{
-		counter: c.counter,
-		attrs:   attrs,
+		counter:    c.counter,
+		labelNames: c.labelNames,
+		attrs:      attrs,
 	}
 }
 

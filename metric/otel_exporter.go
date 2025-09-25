@@ -43,7 +43,7 @@ func newOTELExporter(logger Logger, endpoint string, interval time.Duration, ser
 	}
 
 	exporter.init = true
-	logger.Infow("otel exporter initialized", "endpoint", exporter.endpoint, "service", exporter.serviceName)
+	logger.Infow("otel exporter initialized", "service", exporter.serviceName)
 	return exporter
 }
 
@@ -51,8 +51,15 @@ func newOTELExporter(logger Logger, endpoint string, interval time.Duration, ser
 func (w *otelExporter) initialize() error {
 	ctx := context.Background()
 
-	exporter, err := otlpmetricgrpc.New(ctx,
+	options := []otlpmetricgrpc.Option{
 		otlpmetricgrpc.WithInsecure(),
+	}
+	if w.endpoint != "" {
+		options = append(options, otlpmetricgrpc.WithEndpoint(w.endpoint))
+	}
+
+	exporter, err := otlpmetricgrpc.New(ctx,
+		options...,
 	)
 	if err != nil {
 		return err
