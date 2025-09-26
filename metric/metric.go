@@ -63,9 +63,10 @@ func Start(logger Logger, options ...Option) (func(), error) {
 				globalConfig.ServiceName,
 				globalConfig.ServiceVersion,
 				globalConfig.Env,
+				globalConfig.Debug,
 			)
 		default:
-			return nil, errors.New(fmt.Sprintf("unsupported mode: %s", globalConfig.Mode))
+			return nil, fmt.Errorf("unsupported mode: %s", globalConfig.Mode)
 		}
 	}
 

@@ -15,6 +15,7 @@ type Config struct {
 	ServiceVersion string        // 服务版本
 	Env            string        // 环境
 	StreamName     string        // 流名称（OpenObserve用）
+	Debug          bool          // 调试模式
 }
 
 // Option 配置选项函数
@@ -24,6 +25,13 @@ type Option func(*Config)
 func WithMode(mode Mode) Option {
 	return func(cfg *Config) {
 		cfg.Mode = mode
+	}
+}
+
+// WithDebug 设置调试模式
+func WithDebug(debug bool) Option {
+	return func(cfg *Config) {
+		cfg.Debug = debug
 	}
 }
 
