@@ -28,6 +28,7 @@ func main() {
 	// 设置环境变量
 	os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
 	os.Setenv("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc")
+	os.Setenv("OTEL_EXPORTER_OTLP_INSECURE", "true")
 	os.Setenv("OTEL_SERVICE_NAME", "go-toolkits-metric-demo")
 	os.Setenv("OTEL_SERVICE_VERSION", "1.0.0")
 	os.Setenv("ENV", "demo")
@@ -39,8 +40,6 @@ func main() {
 	stop, err := metric.Start(
 		logger,
 		metric.WithMode(metric.ModeOTEL),
-		metric.WithEndpoint("localhost:4317"),
-		metric.WithServiceName("go-toolkits-metric-demo"),
 		metric.WithInterval(time.Second*5),
 		metric.WithStatsMetric(),
 	)

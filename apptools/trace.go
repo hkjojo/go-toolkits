@@ -2,7 +2,6 @@ package apptools
 
 import (
 	"context"
-	"os"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -27,13 +26,7 @@ OTEL_EXPORTER_OTLP_TRACES_CLIENT_KEY
 */
 func NewTracerProvider() (trace.TracerProvider, func(), error) {
 	ctx := context.Background()
-	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
-	if endpoint == "" {
-		endpoint = "localhost:4317"
-	}
-
 	traceExp, err := otlptracegrpc.New(ctx,
-		otlptracegrpc.WithEndpoint(endpoint),
 		otlptracegrpc.WithInsecure(),
 	)
 	if err != nil {
