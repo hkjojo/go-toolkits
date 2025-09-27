@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"runtime"
 	"sync"
 	"time"
@@ -37,6 +38,15 @@ var (
 
 // Start 启动metric采集
 func Start(logger Logger, options ...Option) (func(), error) {
+	// 先从环境变量读取默认值
+	if ns := os.Getenv("METRIC_DEFAULT_NAMESPACE"); ns != "" {
+		globalConfig.DefaultNamespace = ns
+	}
+	if ss := os.Getenv("METRIC_DEFAULT_SUBSYSTEM"); ss != "" {
+		globalConfig.DefaultSubsystem = ss
+	}
+
+	// 然后应用 Option，Option 优先级更高
 	for _, option := range options {
 		option(globalConfig)
 	}
@@ -63,7 +73,6 @@ func Start(logger Logger, options ...Option) (func(), error) {
 				globalConfig.ServiceName,
 				globalConfig.ServiceVersion,
 				globalConfig.Env,
-				globalConfig.Debug,
 			)
 		default:
 			return nil, fmt.Errorf("unsupported mode: %s", globalConfig.Mode)
@@ -185,6 +194,9 @@ func collectRuntimeStats() {
 
 // NewCounter 创建计数器
 func NewCounter(namespace, subsystem, name, description string, labelNames []string) Counter {
+	// 应用默认值
+	namespace, subsystem = applyDefaults(namespace, subsystem)
+
 	switch globalConfig.Mode {
 	case ModeLog, ModeOpenObserve:
 		counterVec := prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -210,6 +222,9 @@ func NewCounter(namespace, subsystem, name, description string, labelNames []str
 
 // NewGauge 创建仪表盘
 func NewGauge(namespace, subsystem, name, description string, labelNames []string) Gauge {
+	// 应用默认值
+	namespace, subsystem = applyDefaults(namespace, subsystem)
+
 	switch globalConfig.Mode {
 	case ModeLog, ModeOpenObserve:
 		gaugeVec := prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -235,6 +250,9 @@ func NewGauge(namespace, subsystem, name, description string, labelNames []strin
 
 // NewHistogram 创建直方图
 func NewHistogram(namespace, subsystem, name, description string, labelNames []string, buckets ...float64) Observer {
+	// 应用默认值
+	namespace, subsystem = applyDefaults(namespace, subsystem)
+
 	switch globalConfig.Mode {
 	case ModeLog, ModeOpenObserve:
 		histogramVec := prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -261,6 +279,9 @@ func NewHistogram(namespace, subsystem, name, description string, labelNames []s
 
 // NewSummary 创建摘要
 func NewSummary(namespace, subsystem, name, description string, labelNames []string) Observer {
+	// 应用默认值
+	namespace, subsystem = applyDefaults(namespace, subsystem)
+
 	switch globalConfig.Mode {
 	case ModeLog, ModeOpenObserve:
 		summaryVec := prometheus.NewSummaryVec(prometheus.SummaryOpts{
@@ -289,6 +310,17 @@ func getMeter() metric.Meter {
 		globalMeter = otel.Meter(globalConfig.ServiceName)
 	})
 	return globalMeter
+}
+
+// applyDefaults 应用默认的 namespace 和 subsystem
+func applyDefaults(namespace, subsystem string) (string, string) {
+	if namespace == "" {
+		namespace = globalConfig.DefaultNamespace
+	}
+	if subsystem == "" {
+		subsystem = globalConfig.DefaultSubsystem
+	}
+	return namespace, subsystem
 }
 
 type Collector struct {

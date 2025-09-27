@@ -2,11 +2,8 @@ package metric
 
 import (
 	"context"
-	"log"
-	"os"
 	"time"
 
-	"github.com/go-logr/stdr"
 	dto "github.com/prometheus/client_model/go"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
@@ -25,11 +22,10 @@ type otelExporter struct {
 	meterProvider  *metric.MeterProvider
 	logger         Logger
 	init           bool
-	debug          bool
 }
 
 // newOTELExporter creates a new OTEL exporter
-func newOTELExporter(logger Logger, endpoint string, interval time.Duration, serviceName, serviceVersion, env string, debug bool) Exporter {
+func newOTELExporter(logger Logger, endpoint string, interval time.Duration, serviceName, serviceVersion, env string) Exporter {
 	exporter := &otelExporter{
 		serviceName:    serviceName,
 		serviceVersion: serviceVersion,
@@ -37,7 +33,6 @@ func newOTELExporter(logger Logger, endpoint string, interval time.Duration, ser
 		interval:       interval,
 		endpoint:       endpoint,
 		logger:         logger,
-		debug:          debug,
 	}
 
 	// Initialize OTEL exporter and meter provider
@@ -92,9 +87,6 @@ func (w *otelExporter) initialize() error {
 		metric.WithReader(metric.NewPeriodicReader(exporter, metric.WithInterval(w.interval))),
 		metric.WithResource(res),
 	)
-	if w.debug {
-		otel.SetLogger(stdr.New(log.New(os.Stdout, "", log.LstdFlags|log.Lshortfile)))
-	}
 
 	w.meterProvider = mp
 
