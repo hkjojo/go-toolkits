@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/metric"
 )
 
 var (
@@ -26,10 +24,6 @@ var (
 
 	// Prometheus注册器（仅在prometheus模式下使用）
 	prometheusRegistry *prometheus.Registry
-
-	// Global meter instance (used by OTEL)
-	globalMeter metric.Meter
-	meterOnce   sync.Once
 
 	// 运行时指标收集器
 	runtimeGauge Gauge
@@ -303,13 +297,6 @@ func NewSummary(namespace, subsystem, name, description string, labelNames []str
 		}
 		return newOTelSummary(fullName, description, "1", labelNames)
 	}
-}
-
-func getMeter() metric.Meter {
-	meterOnce.Do(func() {
-		globalMeter = otel.Meter(globalConfig.ServiceName)
-	})
-	return globalMeter
 }
 
 // applyDefaults 应用默认的 namespace 和 subsystem
