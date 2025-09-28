@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 	"os"
-	"time"
 
 	"github.com/go-logr/stdr"
 	dto "github.com/prometheus/client_model/go"
@@ -17,25 +16,15 @@ import (
 
 // otelExporter implements Exporter interface for OpenTelemetry OTEL protocol
 type otelExporter struct {
-	interval       time.Duration
-	endpoint       string
-	serviceName    string
-	serviceVersion string
-	env            string
-	meterProvider  *metric.MeterProvider
-	logger         Logger
-	init           bool
+	meterProvider *metric.MeterProvider
+	logger        Logger
+	init          bool
 }
 
 // newOTELExporter creates a new OTEL exporter
-func newOTELExporter(logger Logger, endpoint string, interval time.Duration, serviceName, serviceVersion, env string) Exporter {
+func newOTELExporter(logger Logger) Exporter {
 	exporter := &otelExporter{
-		serviceName:    serviceName,
-		serviceVersion: serviceVersion,
-		env:            env,
-		interval:       interval,
-		endpoint:       endpoint,
-		logger:         logger,
+		logger: logger,
 	}
 
 	// Initialize OTEL exporter and meter provider
@@ -46,7 +35,7 @@ func newOTELExporter(logger Logger, endpoint string, interval time.Duration, ser
 	}
 
 	exporter.init = true
-	logger.Infow("otel exporter initialized", "service", exporter.serviceName, "endpoint", exporter.endpoint)
+	logger.Infow("otel exporter initialized", "service", globalConfig.ServiceName, "endpoint", globalConfig.Endpoint)
 	return exporter
 }
 
@@ -57,8 +46,8 @@ func (w *otelExporter) initialize() error {
 	options := []otlpmetricgrpc.Option{
 		otlpmetricgrpc.WithInsecure(),
 	}
-	if w.endpoint != "" {
-		options = append(options, otlpmetricgrpc.WithEndpoint(w.endpoint))
+	if globalConfig.Endpoint != "" {
+		options = append(options, otlpmetricgrpc.WithEndpoint(globalConfig.Endpoint))
 	}
 
 	exporter, err := otlpmetricgrpc.New(ctx,
@@ -73,9 +62,9 @@ func (w *otelExporter) initialize() error {
 		resource.WithFromEnv(),
 		resource.WithHost(),
 		resource.WithAttributes(
-			semconv.ServiceName(w.serviceName),
-			semconv.ServiceVersion(w.serviceVersion),
-			semconv.DeploymentEnvironment(w.env),
+			semconv.ServiceName(globalConfig.ServiceName),
+			semconv.ServiceVersion(globalConfig.ServiceVersion),
+			semconv.DeploymentEnvironment(globalConfig.Env),
 		),
 	)
 	if err != nil {
@@ -87,7 +76,7 @@ func (w *otelExporter) initialize() error {
 	exporter.Aggregation(metric.InstrumentKindHistogram)
 
 	mp := metric.NewMeterProvider(
-		metric.WithReader(metric.NewPeriodicReader(exporter, metric.WithInterval(w.interval))),
+		metric.WithReader(metric.NewPeriodicReader(exporter, metric.WithInterval(globalConfig.Interval))),
 		metric.WithResource(res),
 	)
 
@@ -96,8 +85,10 @@ func (w *otelExporter) initialize() error {
 	// Set global meter provider
 	otel.SetMeterProvider(mp)
 
-	stdr.SetVerbosity(8)
-	otel.SetLogger(stdr.New(log.New(os.Stdout, "", log.LstdFlags|log.Lshortfile)))
+	if globalConfig.Debug {
+		stdr.SetVerbosity(8)
+		otel.SetLogger(stdr.New(log.New(os.Stdout, "", log.LstdFlags|log.Lshortfile)))
+	}
 	return nil
 }
 

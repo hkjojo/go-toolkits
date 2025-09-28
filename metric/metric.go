@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/metric"
 )
 
 var (
@@ -22,6 +20,7 @@ var (
 		WithoutUp:    true,
 		CollectStats: false,
 		ServiceName:  "go-tookits",
+		Debug:        false,
 	}
 
 	// Prometheus注册器（仅在prometheus模式下使用）
@@ -41,6 +40,9 @@ func Start(logger Logger, options ...Option) (func(), error) {
 	if ss := os.Getenv("METRIC_DEFAULT_SUBSYSTEM"); ss != "" {
 		globalConfig.DefaultSubsystem = ss
 	}
+	if debug := os.Getenv("METRIC_LOG_DEBUG"); debug != "" {
+		globalConfig.Debug = debug == "true"
+	}
 
 	// 然后应用 Option，Option 优先级更高
 	for _, option := range options {
@@ -54,22 +56,11 @@ func Start(logger Logger, options ...Option) (func(), error) {
 			prometheusRegistry = prometheus.NewRegistry()
 		case ModeOpenObserve:
 			// 创建OpenObserve导出器选项
-			exporter = newOpenobserveExporter(logger,
-				globalConfig.Endpoint,
-				globalConfig.ServiceName,
-				globalConfig.StreamName,
-			)
+			exporter = newOpenobserveExporter(logger)
 			prometheusRegistry = prometheus.NewRegistry()
 		case ModeOTEL:
 			// 创建OTEL导出器选项
-			exporter = newOTELExporter(
-				logger,
-				globalConfig.Endpoint,
-				globalConfig.Interval,
-				globalConfig.ServiceName,
-				globalConfig.ServiceVersion,
-				globalConfig.Env,
-			)
+			exporter = newOTELExporter(logger)
 		default:
 			return nil, fmt.Errorf("unsupported mode: %s", globalConfig.Mode)
 		}
@@ -299,13 +290,6 @@ func NewSummary(namespace, subsystem, name, description string, labelNames []str
 		}
 		return newOTelSummary(fullName, description, "1", labelNames)
 	}
-}
-
-func getMeter(name string) metric.Meter {
-	// 始终从当前全局 Provider 获取 Meter，避免在 Start 之前缓存导致绑定到 noop Provider
-	meter := otel.Meter(globalConfig.ServiceName)
-	fmt.Printf("getMeter() called - ServiceName: %s, Meter pointer: %p\n, metricName: %s", globalConfig.ServiceName, meter, name)
-	return meter
 }
 
 // applyDefaults 应用默认的 namespace 和 subsystem

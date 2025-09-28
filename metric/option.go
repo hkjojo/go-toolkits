@@ -17,6 +17,7 @@ type Config struct {
 	StreamName       string        // 流名称（OpenObserve用）
 	DefaultNamespace string        // 默认命名空间
 	DefaultSubsystem string        // 默认子系统
+	Debug            bool          // 调试模式
 }
 
 // Option 配置选项函数
@@ -33,6 +34,13 @@ func WithMode(mode Mode) Option {
 func WithInterval(d time.Duration) Option {
 	return func(cfg *Config) {
 		cfg.Interval = d
+	}
+}
+
+// WithDebug 设置调试模式
+func WithDebug(debug bool) Option {
+	return func(cfg *Config) {
+		cfg.Debug = debug
 	}
 }
 

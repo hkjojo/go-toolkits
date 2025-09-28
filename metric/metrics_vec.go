@@ -22,8 +22,8 @@ func ServerRequestHistogram() Observer {
 	return NewHistogram(
 		"",
 		"",
-		"server_requests_duration_ms",
-		"The duration(ms) of HTTP requests processed by the server",
+		"server_requests_duration",
+		"The duration of HTTP requests processed by the server",
 		[]string{"kind", "operation"},
 		0.005, 0.01, 0.05, 0.1, 1, 5)
 }
@@ -32,8 +32,8 @@ func ClientRequestHistogram() Observer {
 	return NewHistogram(
 		"",
 		"",
-		"client_requests_duration_ms",
-		"The duration(ms) of HTTP requests processed by the client",
+		"client_requests_duration",
+		"The duration of HTTP requests processed by the client",
 		[]string{"kind", "operation"},
 		0.005, 0.01, 0.05, 0.1, 1, 5)
 }

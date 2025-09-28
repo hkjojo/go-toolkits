@@ -33,27 +33,21 @@ var (
 
 // openobserveExporter 实现OpenObserve导出器
 type openobserveExporter struct {
-	init        bool
-	endpoint    string
-	header      map[string]string
-	client      *http.Client
-	logger      Logger
-	serviceName string
-	streamName  string
+	init   bool
+	header map[string]string
+	client *http.Client
+	logger Logger
 }
 
 // newOpenobserveExporter 创建OpenObserve导出器
-func newOpenobserveExporter(logger Logger, endpoint, serviceName, streamName string) Exporter {
+func newOpenobserveExporter(logger Logger) Exporter {
 	exporter := &openobserveExporter{
-		endpoint:    endpoint,
-		serviceName: serviceName,
-		streamName:  streamName,
-		client:      &http.Client{Timeout: time.Second * 30},
-		logger:      logger,
+		client: &http.Client{Timeout: time.Second * 30},
+		logger: logger,
 	}
 
-	if exporter.streamName == "" {
-		exporter.streamName = defaultStreamName
+	if globalConfig.StreamName == "" {
+		globalConfig.StreamName = defaultStreamName
 	}
 
 	header, ok := os.LookupEnv("METRIC_HEADERS")
@@ -69,9 +63,9 @@ func newOpenobserveExporter(logger Logger, endpoint, serviceName, streamName str
 		exporter.header = hm
 	}
 
-	if exporter.endpoint != "" {
+	if globalConfig.Endpoint != "" {
 		exporter.init = true
-		logger.Infow("openobserve exporter initialized", "endpoint", exporter.endpoint)
+		logger.Infow("openobserve exporter initialized", "endpoint", globalConfig.Endpoint)
 	} else {
 		logger.Warnw("openobserve exporter not initialized", "err", "endpoint empty")
 	}
@@ -106,7 +100,7 @@ func (w *openobserveExporter) Export(mf *dto.MetricFamily) {
 		return
 	}
 
-	req, err = http.NewRequest(http.MethodPost, w.endpoint, bytes.NewBuffer(snappy.Encode(nil, pbBytes)))
+	req, err = http.NewRequest(http.MethodPost, globalConfig.Endpoint, bytes.NewBuffer(snappy.Encode(nil, pbBytes)))
 	if err != nil {
 		return
 	}
@@ -164,8 +158,8 @@ func (w *openobserveExporter) convert(mf *dto.MetricFamily) ([]prompb.TimeSeries
 	)
 	// reserved label name
 	defaultLbs = append(defaultLbs,
-		prompb.Label{Name: streamLabel, Value: w.streamName},
-		prompb.Label{Name: serverLabel, Value: w.serviceName},
+		prompb.Label{Name: streamLabel, Value: globalConfig.StreamName},
+		prompb.Label{Name: serverLabel, Value: globalConfig.ServiceName},
 		prompb.Label{Name: metricLabel, Value: mf.GetName()},
 	)
 
@@ -242,7 +236,7 @@ func (w *openobserveExporter) toPrometheusPbWriteRequest(mf *dto.MetricFamily) (
 		return nil, err
 	}
 	metadata := getMetadata(mf)
-	metadata.MetricFamilyName = w.streamName
+	metadata.MetricFamilyName = globalConfig.StreamName
 	return &prompb.WriteRequest{
 		Timeseries: ts,
 		Metadata:   []prompb.MetricMetadata{metadata},
