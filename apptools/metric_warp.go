@@ -25,10 +25,10 @@ func (b *baseMetric) With(labelValues []string) {
 }
 
 // NewInt64Counter 创建带预置标签的 Int64Counter
-func NewInt64Counter(name string, labelNames []string, options ...metric.Int64CounterOption) (*Int64Counter, error) {
+func NewInt64Counter(name string, labelNames []string, options ...metric.Int64CounterOption) *Int64Counter {
 	counter, err := otel.Meter(Name).Int64Counter(name, options...)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 
 	return &Int64Counter{
@@ -36,14 +36,14 @@ func NewInt64Counter(name string, labelNames []string, options ...metric.Int64Co
 		baseMetric: baseMetric{
 			labelNames: labelNames,
 		},
-	}, nil
+	}
 }
 
 // NewInt64UpDownCounter 创建带预置标签的 Int64UpDownCounter
-func NewInt64UpDownCounter(name string, labelNames []string, options ...metric.Int64UpDownCounterOption) (*Int64UpDownCounter, error) {
+func NewInt64UpDownCounter(name string, labelNames []string, options ...metric.Int64UpDownCounterOption) *Int64UpDownCounter {
 	counter, err := otel.Meter(Name).Int64UpDownCounter(name, options...)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 
 	return &Int64UpDownCounter{
@@ -51,14 +51,14 @@ func NewInt64UpDownCounter(name string, labelNames []string, options ...metric.I
 		baseMetric: baseMetric{
 			labelNames: labelNames,
 		},
-	}, nil
+	}
 }
 
 // NewInt64Histogram 创建带预置标签的 Int64Histogram
-func NewInt64Histogram(name string, labelNames []string, options ...metric.Int64HistogramOption) (*Int64Histogram, error) {
+func NewInt64Histogram(name string, labelNames []string, options ...metric.Int64HistogramOption) *Int64Histogram {
 	histogram, err := otel.Meter(Name).Int64Histogram(name, options...)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 
 	return &Int64Histogram{
@@ -66,14 +66,14 @@ func NewInt64Histogram(name string, labelNames []string, options ...metric.Int64
 		baseMetric: baseMetric{
 			labelNames: labelNames,
 		},
-	}, nil
+	}
 }
 
 // NewInt64Gauge 创建带预置标签的 Int64Gauge
-func NewInt64Gauge(name string, labelNames []string, options ...metric.Int64GaugeOption) (*Int64Gauge, error) {
+func NewInt64Gauge(name string, labelNames []string, options ...metric.Int64GaugeOption) *Int64Gauge {
 	gauge, err := otel.Meter(Name).Int64Gauge(name, options...)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 
 	return &Int64Gauge{
@@ -81,14 +81,14 @@ func NewInt64Gauge(name string, labelNames []string, options ...metric.Int64Gaug
 		baseMetric: baseMetric{
 			labelNames: labelNames,
 		},
-	}, nil
+	}
 }
 
 // NewFloat64Counter 创建带预置标签的 Float64Counter
-func NewFloat64Counter(name string, labelNames []string, options ...metric.Float64CounterOption) (*Float64Counter, error) {
+func NewFloat64Counter(name string, labelNames []string, options ...metric.Float64CounterOption) *Float64Counter {
 	counter, err := otel.Meter(Name).Float64Counter(name, options...)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 
 	return &Float64Counter{
@@ -96,14 +96,14 @@ func NewFloat64Counter(name string, labelNames []string, options ...metric.Float
 		baseMetric: baseMetric{
 			labelNames: labelNames,
 		},
-	}, nil
+	}
 }
 
 // NewFloat64UpDownCounter 创建带预置标签的 Float64UpDownCounter
-func NewFloat64UpDownCounter(name string, labelNames []string, options ...metric.Float64UpDownCounterOption) (*Float64UpDownCounter, error) {
+func NewFloat64UpDownCounter(name string, labelNames []string, options ...metric.Float64UpDownCounterOption) *Float64UpDownCounter {
 	counter, err := otel.Meter(Name).Float64UpDownCounter(name, options...)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 
 	return &Float64UpDownCounter{
@@ -111,14 +111,14 @@ func NewFloat64UpDownCounter(name string, labelNames []string, options ...metric
 		baseMetric: baseMetric{
 			labelNames: labelNames,
 		},
-	}, nil
+	}
 }
 
 // NewFloat64Histogram 创建带预置标签的 Float64Histogram
-func NewFloat64Histogram(name string, labelNames []string, options ...metric.Float64HistogramOption) (*Float64Histogram, error) {
+func NewFloat64Histogram(name string, labelNames []string, options ...metric.Float64HistogramOption) *Float64Histogram {
 	histogram, err := otel.Meter(Name).Float64Histogram(name, options...)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 
 	return &Float64Histogram{
@@ -126,14 +126,14 @@ func NewFloat64Histogram(name string, labelNames []string, options ...metric.Flo
 		baseMetric: baseMetric{
 			labelNames: labelNames,
 		},
-	}, nil
+	}
 }
 
 // NewFloat64Gauge 创建带预置标签的 Float64Gauge
-func NewFloat64Gauge(name string, labelNames []string, options ...metric.Float64GaugeOption) (*Float64Gauge, error) {
+func NewFloat64Gauge(name string, labelNames []string, options ...metric.Float64GaugeOption) *Float64Gauge {
 	gauge, err := otel.Meter(Name).Float64Gauge(name, options...)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 
 	return &Float64Gauge{
@@ -141,7 +141,7 @@ func NewFloat64Gauge(name string, labelNames []string, options ...metric.Float64
 		baseMetric: baseMetric{
 			labelNames: labelNames,
 		},
-	}, nil
+	}
 }
 
 // ========== 包装器实现 ==========

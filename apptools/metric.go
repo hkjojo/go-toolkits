@@ -151,83 +151,59 @@ func registerStatsMetric() error {
 }
 
 // ServerRequestCounter "kind", "operation", "code", "reason"
-func ServerRequestCounter() metric.Int64Counter {
-	counter, err := NewInt64Counter(
+func ServerRequestCounter() *Int64Counter {
+	return NewInt64Counter(
 		"server_requests_code_total",
 		[]string{"kind", "operation", "code", "reason"},
 		metric.WithDescription("The total number of server processed requests"),
 	)
-	if err != nil {
-		panic(err)
-	}
-	return counter
 }
 
 // ClientRequestCounter "kind", "operation", "code", "reason"
-func ClientRequestCounter() metric.Int64Counter {
-	counter, err := NewInt64Counter(
+func ClientRequestCounter() *Int64Counter {
+	return NewInt64Counter(
 		"client_requests_code_total",
 		[]string{"kind", "operation", "code", "reason"},
 		metric.WithDescription("The total number of client processed requests"),
 	)
-	if err != nil {
-		panic(err)
-	}
-	return counter
 }
 
 // ServerRequestHistogram "kind", "operation"
-func ServerRequestHistogram() metric.Float64Histogram {
-	histogram, err := NewFloat64Histogram(
+func ServerRequestHistogram() *Float64Histogram {
+	return NewFloat64Histogram(
 		"server_requests_duration",
 		[]string{"kind", "operation"},
 		metric.WithDescription("The duration of HTTP requests processed by the server"),
 		metric.WithExplicitBucketBoundaries(0.005, 0.01, 0.05, 0.1, 1, 5),
 	)
-	if err != nil {
-		panic(err)
-	}
-	return histogram
 }
 
 // ClientRequestHistogram "kind", "operation"
-func ClientRequestHistogram() metric.Float64Histogram {
-	histogram, err := NewFloat64Histogram(
+func ClientRequestHistogram() *Float64Histogram {
+	return NewFloat64Histogram(
 		"client_requests_duration",
 		[]string{"kind", "operation"},
 		metric.WithDescription("The duration of HTTP requests processed by the client"),
 		metric.WithExplicitBucketBoundaries(0.005, 0.01, 0.05, 0.1, 1, 5),
 	)
-	if err != nil {
-		panic(err)
-	}
-	return histogram
 }
 
 // NewConnectionsCounter "kind"
-func NewConnectionsCounter(labelNames ...string) metric.Int64UpDownCounter {
-	counter, err := NewInt64UpDownCounter(
+func NewConnectionsCounter() *Int64UpDownCounter {
+	return NewInt64UpDownCounter(
 		"network_connections_total",
 		[]string{"kind"},
 		metric.WithDescription("The total number of connections in memory like (fix/grpc stream/ws/tcp"),
 	)
-	if err != nil {
-		panic(err)
-	}
-	return counter
 }
 
 // NewQuoteCounter "symbol"
-func NewQuoteCounter(labelNames ...string) metric.Int64Counter {
-	counter, err := NewInt64Counter(
+func NewQuoteCounter() *Int64Counter {
+	return NewInt64Counter(
 		"symbol_quote_count",
 		[]string{"symbol"},
 		metric.WithDescription("The total number of symbol quote"),
 	)
-	if err != nil {
-		panic(err)
-	}
-	return counter
 }
 
 // Config metric配置
