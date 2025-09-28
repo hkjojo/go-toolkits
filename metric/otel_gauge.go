@@ -7,7 +7,6 @@ import (
 	"sort"
 	"sync"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
@@ -23,7 +22,7 @@ type otelGauge struct {
 
 // newOTelGauge creates a new OpenTelemetry gauge and returns Gauge.
 func newOTelGauge(name, description string, labelNames []string) Gauge {
-	gauge, err := otel.Meter(globalConfig.ServiceName).Float64UpDownCounter(
+	gauge, err := getMeter(name).Float64UpDownCounter(
 		name,
 		metric.WithDescription(description),
 	)

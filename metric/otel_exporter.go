@@ -2,9 +2,11 @@ package metric
 
 import (
 	"context"
+	"log"
+	"os"
 	"time"
 
-	"github.com/go-logr/logr/funcr"
+	"github.com/go-logr/stdr"
 	dto "github.com/prometheus/client_model/go"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
@@ -94,10 +96,8 @@ func (w *otelExporter) initialize() error {
 	// Set global meter provider
 	otel.SetMeterProvider(mp)
 
-	// 设置全局日志器以启用 global.Debug 输出
-	otel.SetLogger(funcr.New(func(prefix, args string) {
-		w.logger.Infow("otel exporter", "prefix", prefix, "args", args)
-	}, funcr.Options{Verbosity: 8}))
+	stdr.SetVerbosity(8)
+	otel.SetLogger(stdr.New(log.New(os.Stdout, "", log.LstdFlags|log.Lshortfile)))
 	return nil
 }
 

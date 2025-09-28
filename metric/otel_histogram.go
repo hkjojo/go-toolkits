@@ -3,7 +3,6 @@ package metric
 import (
 	"context"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
@@ -24,7 +23,7 @@ func newOTelHistogram(name, description string, labelNames []string, buckets ...
 	if len(buckets) > 0 {
 		opts = append(opts, metric.WithExplicitBucketBoundaries(buckets...))
 	}
-	histogram, err := otel.Meter(globalConfig.ServiceName).Float64Histogram(name, opts...)
+	histogram, err := getMeter(name).Float64Histogram(name, opts...)
 	if err != nil {
 		panic(err)
 	}

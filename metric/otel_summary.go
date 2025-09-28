@@ -3,7 +3,6 @@ package metric
 import (
 	"context"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
@@ -19,7 +18,7 @@ type otelSummary struct {
 
 // newOTelSummary 创建OpenTelemetry摘要
 func newOTelSummary(name, description string, unit string, labelNames []string) Observer {
-	summary, err := otel.Meter(globalConfig.ServiceName).Float64Histogram(
+	summary, err := getMeter(name).Float64Histogram(
 		name,
 		metric.WithDescription(description),
 		metric.WithUnit(unit),

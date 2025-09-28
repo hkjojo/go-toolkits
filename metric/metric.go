@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/metric"
 )
 
 var (
@@ -297,6 +299,13 @@ func NewSummary(namespace, subsystem, name, description string, labelNames []str
 		}
 		return newOTelSummary(fullName, description, "1", labelNames)
 	}
+}
+
+func getMeter(name string) metric.Meter {
+	// 始终从当前全局 Provider 获取 Meter，避免在 Start 之前缓存导致绑定到 noop Provider
+	meter := otel.Meter(globalConfig.ServiceName)
+	fmt.Printf("getMeter() called - ServiceName: %s, Meter pointer: %p\n, metricName: %s", globalConfig.ServiceName, meter, name)
+	return meter
 }
 
 // applyDefaults 应用默认的 namespace 和 subsystem
