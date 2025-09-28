@@ -58,8 +58,8 @@ func (b *Builder) AddOtelTraceProvider(f NewOtelTracerProviderFunc) *Builder {
 	return b
 }
 
-func (b *Builder) AddOtelMetricProvider(f NewOtelTracerProviderFunc) *Builder {
-	b.tpFactory = f
+func (b *Builder) AddOtelMetricProvider(f NewOtelMetricProviderFunc) *Builder {
+	b.mpFactory = f
 	return b
 }
 
