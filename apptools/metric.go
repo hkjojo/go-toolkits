@@ -150,10 +150,11 @@ func registerStatsMetric() error {
 	return err
 }
 
-// ServerRequestCounter "kind", "operation", "code", "reason"}
+// ServerRequestCounter "kind", "operation", "code", "reason"
 func ServerRequestCounter() metric.Int64Counter {
-	counter, err := otel.Meter(Name).Int64Counter(
+	counter, err := NewInt64Counter(
 		"server_requests_code_total",
+		[]string{"kind", "operation", "code", "reason"},
 		metric.WithDescription("The total number of server processed requests"),
 	)
 	if err != nil {
@@ -162,10 +163,11 @@ func ServerRequestCounter() metric.Int64Counter {
 	return counter
 }
 
-// ClientRequestCounter "kind", "operation", "code", "reason"}
+// ClientRequestCounter "kind", "operation", "code", "reason"
 func ClientRequestCounter() metric.Int64Counter {
-	counter, err := otel.Meter(Name).Int64Counter(
+	counter, err := NewInt64Counter(
 		"client_requests_code_total",
+		[]string{"kind", "operation", "code", "reason"},
 		metric.WithDescription("The total number of client processed requests"),
 	)
 	if err != nil {
@@ -176,7 +178,9 @@ func ClientRequestCounter() metric.Int64Counter {
 
 // ServerRequestHistogram "kind", "operation"
 func ServerRequestHistogram() metric.Float64Histogram {
-	histogram, err := otel.Meter(Name).Float64Histogram("server_requests_duration",
+	histogram, err := NewFloat64Histogram(
+		"server_requests_duration",
+		[]string{"kind", "operation"},
 		metric.WithDescription("The duration of HTTP requests processed by the server"),
 		metric.WithExplicitBucketBoundaries(0.005, 0.01, 0.05, 0.1, 1, 5),
 	)
@@ -188,7 +192,9 @@ func ServerRequestHistogram() metric.Float64Histogram {
 
 // ClientRequestHistogram "kind", "operation"
 func ClientRequestHistogram() metric.Float64Histogram {
-	histogram, err := otel.Meter(Name).Float64Histogram("client_requests_duration",
+	histogram, err := NewFloat64Histogram(
+		"client_requests_duration",
+		[]string{"kind", "operation"},
 		metric.WithDescription("The duration of HTTP requests processed by the client"),
 		metric.WithExplicitBucketBoundaries(0.005, 0.01, 0.05, 0.1, 1, 5),
 	)
@@ -200,8 +206,9 @@ func ClientRequestHistogram() metric.Float64Histogram {
 
 // NewConnectionsCounter "kind"
 func NewConnectionsCounter(labelNames ...string) metric.Int64UpDownCounter {
-	counter, err := otel.Meter(Name).Int64UpDownCounter(
+	counter, err := NewInt64UpDownCounter(
 		"network_connections_total",
+		[]string{"kind"},
 		metric.WithDescription("The total number of connections in memory like (fix/grpc stream/ws/tcp"),
 	)
 	if err != nil {
@@ -212,8 +219,9 @@ func NewConnectionsCounter(labelNames ...string) metric.Int64UpDownCounter {
 
 // NewQuoteCounter "symbol"
 func NewQuoteCounter(labelNames ...string) metric.Int64Counter {
-	counter, err := otel.Meter(Name).Int64Counter(
+	counter, err := NewInt64Counter(
 		"symbol_quote_count",
+		[]string{"symbol"},
 		metric.WithDescription("The total number of symbol quote"),
 	)
 	if err != nil {
