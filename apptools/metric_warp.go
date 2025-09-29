@@ -152,8 +152,8 @@ type Int64Counter struct {
 	baseMetric
 }
 
-func (c *Int64Counter) Add(ctx context.Context, incr int64, opts ...metric.AddOption) {
-	c.Int64Counter.Add(ctx, incr, append(opts, metric.WithAttributes(c.attrs...))...)
+func (c *Int64Counter) Add(incr int64, opts ...metric.AddOption) {
+	c.Int64Counter.Add(context.Background(), incr, append(opts, metric.WithAttributes(c.attrs...))...)
 }
 
 func (c *Int64Counter) With(labelValues ...string) *Int64Counter {
@@ -167,8 +167,8 @@ type Int64UpDownCounter struct {
 	baseMetric
 }
 
-func (c *Int64UpDownCounter) Add(ctx context.Context, incr int64, opts ...metric.AddOption) {
-	c.Int64UpDownCounter.Add(ctx, incr, append(opts, metric.WithAttributes(c.attrs...))...)
+func (c *Int64UpDownCounter) Add(incr int64, opts ...metric.AddOption) {
+	c.Int64UpDownCounter.Add(context.Background(), incr, append(opts, metric.WithAttributes(c.attrs...))...)
 }
 
 // Int64Histogram 带预置标签的 Int64Histogram
@@ -177,8 +177,8 @@ type Int64Histogram struct {
 	baseMetric
 }
 
-func (h *Int64Histogram) Record(ctx context.Context, incr int64, opts ...metric.RecordOption) {
-	h.Int64Histogram.Record(ctx, incr, append(opts, metric.WithAttributes(h.attrs...))...)
+func (h *Int64Histogram) Record(incr int64, opts ...metric.RecordOption) {
+	h.Int64Histogram.Record(context.Background(), incr, append(opts, metric.WithAttributes(h.attrs...))...)
 }
 
 // Int64Gauge 带预置标签的 Int64Gauge
@@ -187,8 +187,8 @@ type Int64Gauge struct {
 	baseMetric
 }
 
-func (g *Int64Gauge) Record(ctx context.Context, incr int64, opts ...metric.RecordOption) {
-	g.Int64Gauge.Record(ctx, incr, append(opts, metric.WithAttributes(g.attrs...))...)
+func (g *Int64Gauge) Record(incr int64, opts ...metric.RecordOption) {
+	g.Int64Gauge.Record(context.Background(), incr, append(opts, metric.WithAttributes(g.attrs...))...)
 }
 
 // Float64Counter 带预置标签的 Float64Counter
@@ -197,8 +197,8 @@ type Float64Counter struct {
 	baseMetric
 }
 
-func (c *Float64Counter) Add(ctx context.Context, incr float64, opts ...metric.AddOption) {
-	c.Float64Counter.Add(ctx, incr, append(opts, metric.WithAttributes(c.attrs...))...)
+func (c *Float64Counter) Add(incr float64, opts ...metric.AddOption) {
+	c.Float64Counter.Add(context.Background(), incr, append(opts, metric.WithAttributes(c.attrs...))...)
 }
 
 // Float64UpDownCounter 带预置标签的 Float64UpDownCounter
@@ -207,8 +207,8 @@ type Float64UpDownCounter struct {
 	baseMetric
 }
 
-func (c *Float64UpDownCounter) Add(ctx context.Context, incr float64, opts ...metric.AddOption) {
-	c.Float64UpDownCounter.Add(ctx, incr, append(opts, metric.WithAttributes(c.attrs...))...)
+func (c *Float64UpDownCounter) Add(incr float64, opts ...metric.AddOption) {
+	c.Float64UpDownCounter.Add(context.Background(), incr, append(opts, metric.WithAttributes(c.attrs...))...)
 }
 
 // Float64Histogram 带预置标签的 Float64Histogram
@@ -217,8 +217,8 @@ type Float64Histogram struct {
 	baseMetric
 }
 
-func (h *Float64Histogram) Record(ctx context.Context, incr float64, opts ...metric.RecordOption) {
-	h.Float64Histogram.Record(ctx, incr, append(opts, metric.WithAttributes(h.attrs...))...)
+func (h *Float64Histogram) Record(incr float64, opts ...metric.RecordOption) {
+	h.Float64Histogram.Record(context.Background(), incr, append(opts, metric.WithAttributes(h.attrs...))...)
 }
 
 // Float64Gauge 带预置标签的 Float64Gauge
@@ -227,6 +227,6 @@ type Float64Gauge struct {
 	baseMetric
 }
 
-func (g *Float64Gauge) Record(ctx context.Context, incr float64, opts ...metric.RecordOption) {
-	g.Float64Gauge.Record(ctx, incr, append(opts, metric.WithAttributes(g.attrs...))...)
+func (g *Float64Gauge) Record(incr float64, opts ...metric.RecordOption) {
+	g.Float64Gauge.Record(context.Background(), incr, append(opts, metric.WithAttributes(g.attrs...))...)
 }
