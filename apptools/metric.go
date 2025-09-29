@@ -76,6 +76,10 @@ func NewMetricProvider(ops ...Option) (metric.MeterProvider, func(), error) {
 		otel.SetLogger(stdr.New(log.New(os.Stdout, "", log.LstdFlags|log.Lshortfile)))
 	}
 
+	if globalConfig.InitCallback != nil {
+		globalConfig.InitCallback()
+	}
+
 	// 注册up指标
 	if !globalConfig.WithoutUp {
 		registerUpMetric()
@@ -214,6 +218,7 @@ type Config struct {
 	CollectStats  bool          // 是否采集运行时统计
 	DefaultPrefix string        // 默认指标前缀
 	Debug         bool          // 调试模式
+	InitCallback  func()        // 初始化回调函数
 }
 
 // Option 配置选项函数
@@ -258,5 +263,12 @@ func WithEndpoint(endpoint string) Option {
 func WithDefaultPrefix(prefix string) Option {
 	return func(cfg *Config) {
 		cfg.DefaultPrefix = prefix
+	}
+}
+
+// WithInitCallback 设置默认前缀
+func WithInitCallback(fn func()) Option {
+	return func(cfg *Config) {
+		cfg.InitCallback = fn
 	}
 }
