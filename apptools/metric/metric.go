@@ -1,13 +1,15 @@
-package apptools
+package metric
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
-	"runtime"
 	"time"
 
 	"github.com/go-logr/stdr"
+	"github.com/hkjojo/go-toolkits/apptools"
+	contribruntime "go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
@@ -15,6 +17,16 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
+)
+
+const (
+	Dimensionless = "1"
+	Bytes         = "By"
+	Milliseconds  = "ms"
+	Seconds       = "s"
+	Microseconds  = "us"
+	Nanoseconds   = "ns"
+	Percent       = "%"
 )
 
 var (
@@ -50,9 +62,9 @@ func NewMetricProvider(ops ...Option) (metric.MeterProvider, func(), error) {
 		resource.WithFromEnv(),
 		resource.WithHost(),
 		resource.WithAttributes(
-			semconv.ServiceName(Name),
-			semconv.ServiceVersion(Version),
-			semconv.DeploymentEnvironment(Env),
+			semconv.ServiceName(apptools.Name),
+			semconv.ServiceVersion(apptools.Version),
+			semconv.DeploymentEnvironment(apptools.Env),
 		),
 	)
 	if err != nil {
@@ -63,10 +75,21 @@ func NewMetricProvider(ops ...Option) (metric.MeterProvider, func(), error) {
 	exporter.Temporality(0)
 	exporter.Aggregation(sdkmetric.InstrumentKindHistogram)
 
-	mp := sdkmetric.NewMeterProvider(
+	opts := []sdkmetric.Option{
 		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exporter, sdkmetric.WithInterval(globalConfig.Interval))),
 		sdkmetric.WithResource(res),
-	)
+	}
+
+	if globalConfig.DefaultPrefix != "" {
+		opts = append(opts, sdkmetric.WithView(sdkmetric.NewView(
+			sdkmetric.Instrument{Name: ".*"}, // 匹配所有 metric
+			sdkmetric.Stream{
+				Name: fmt.Sprintf("%s_${name}", globalConfig.DefaultPrefix), // 给所有 metric 名字加前缀
+			},
+		)))
+	}
+
+	mp := sdkmetric.NewMeterProvider(opts...)
 
 	// Set global meter provider
 	otel.SetMeterProvider(mp)
@@ -87,7 +110,7 @@ func NewMetricProvider(ops ...Option) (metric.MeterProvider, func(), error) {
 
 	// 注册运行时统计指标
 	if globalConfig.CollectStats {
-		err := registerStatsMetric()
+		err := contribruntime.Start(contribruntime.WithMinimumReadMemStatsInterval(10 * time.Second))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -120,76 +143,14 @@ func initConfig(ops ...Option) {
 
 // registerUpMetric 注册服务状态指标 "server_name"
 func registerUpMetric() {
-	upGauge, err := otel.Meter(Name).Int64Gauge(
+	upGauge, err := otel.Meter(apptools.Name).Int64Gauge(
 		"server_up",
 		metric.WithDescription("The service up status"),
 	)
 	if err != nil {
 		panic(err)
 	}
-	upGauge.Record(context.Background(), 1, metric.WithAttributes(attribute.String("server_name", Name)))
-}
-
-// collectRuntimeStats 注册运行时统计指标
-func registerStatsMetric() error {
-	_, err := otel.Meter(Name).Float64ObservableGauge(
-		"runtime",
-		metric.WithDescription("The service runtime stats"),
-		metric.WithFloat64Callback(func(ctx context.Context, o metric.Float64Observer) error {
-			numRoutines := runtime.NumGoroutine()
-			numCgoCall := runtime.NumCgoCall()
-			var stats runtime.MemStats
-			runtime.ReadMemStats(&stats)
-			o.Observe(float64(numRoutines), metric.WithAttributes(attribute.String("stats", "num_goroutines")))
-			o.Observe(float64(numCgoCall), metric.WithAttributes(attribute.String("stats", "num_cgo_call")))
-			o.Observe(float64(stats.Sys), metric.WithAttributes(attribute.String("stats", "sys_bytes")))
-			o.Observe(float64(stats.Mallocs), metric.WithAttributes(attribute.String("stats", "malloc_count")))
-			o.Observe(float64(stats.Frees), metric.WithAttributes(attribute.String("stats", "free_count")))
-			o.Observe(float64(stats.Alloc), metric.WithAttributes(attribute.String("stats", "alloc_bytes")))
-			o.Observe(float64(stats.HeapObjects), metric.WithAttributes(attribute.String("stats", "heap_objects")))
-			o.Observe(float64(stats.StackSys), metric.WithAttributes(attribute.String("stats", "stack_sys_bytes")))
-			return nil
-		}),
-	)
-	return err
-}
-
-// ServerRequestCounter "kind", "operation", "code", "reason"
-func ServerRequestCounter() *Int64Counter {
-	return NewInt64Counter(
-		"server_requests_code_total",
-		[]string{"kind", "operation", "code", "reason"},
-		metric.WithDescription("The total number of server processed requests"),
-	)
-}
-
-// ClientRequestCounter "kind", "operation", "code", "reason"
-func ClientRequestCounter() *Int64Counter {
-	return NewInt64Counter(
-		"client_requests_code_total",
-		[]string{"kind", "operation", "code", "reason"},
-		metric.WithDescription("The total number of client processed requests"),
-	)
-}
-
-// ServerRequestHistogram "kind", "operation"
-func ServerRequestHistogram() *Float64Histogram {
-	return NewFloat64Histogram(
-		"server_requests_duration",
-		[]string{"kind", "operation"},
-		metric.WithDescription("The duration of HTTP requests processed by the server"),
-		metric.WithExplicitBucketBoundaries(0.005, 0.01, 0.05, 0.1, 1, 5),
-	)
-}
-
-// ClientRequestHistogram "kind", "operation"
-func ClientRequestHistogram() *Float64Histogram {
-	return NewFloat64Histogram(
-		"client_requests_duration",
-		[]string{"kind", "operation"},
-		metric.WithDescription("The duration of HTTP requests processed by the client"),
-		metric.WithExplicitBucketBoundaries(0.005, 0.01, 0.05, 0.1, 1, 5),
-	)
+	upGauge.Record(context.Background(), 1, metric.WithAttributes(attribute.String("server_name", apptools.Name)))
 }
 
 // NewConnectionsCounter "kind"
