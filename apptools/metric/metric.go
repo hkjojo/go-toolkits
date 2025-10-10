@@ -2,7 +2,6 @@ package metric
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"time"
@@ -68,16 +67,6 @@ func NewMetricProvider(ops ...Option) (metric.MeterProvider, func(), error) {
 		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exporter, sdkmetric.WithInterval(globalConfig.Interval))),
 		// 关联资源信息，所有 metric 都会包含这些元数据
 		sdkmetric.WithResource(res),
-	}
-
-	// 如果配置了默认前缀，添加 View 来为所有指标名称添加前缀
-	if globalConfig.DefaultPrefix != "" {
-		opts = append(opts, sdkmetric.WithView(sdkmetric.NewView(
-			sdkmetric.Instrument{Name: ".*"}, // 匹配所有 metric（正则表达式）
-			sdkmetric.Stream{ // 定义新的 stream
-				Name: fmt.Sprintf("%s_${name}", globalConfig.DefaultPrefix), // 给所有 metric 名字加前缀，${name} 会被替换为原始名称
-			},
-		)))
 	}
 
 	mp := sdkmetric.NewMeterProvider(opts...)

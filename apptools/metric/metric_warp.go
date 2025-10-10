@@ -2,6 +2,7 @@ package metric
 
 import (
 	"context"
+	"strings"
 
 	"github.com/hkjojo/go-toolkits/apptools"
 	"go.opentelemetry.io/otel"
@@ -37,9 +38,21 @@ func (b *baseMetric) With(labelValues []string) {
 	b.attrs = attrs
 }
 
+// withPrefix 如果在全局配置中设置了 DefaultPrefix，则为指标名加上该前缀。
+// 示例：prefix="td"，name="requests_total" => "td_requests_total"
+func withPrefix(name string) string {
+	if globalConfig != nil && globalConfig.DefaultPrefix != "" {
+		p := globalConfig.DefaultPrefix
+		if !strings.HasPrefix(name, p+"_") {
+			return p + "_" + name
+		}
+	}
+	return name
+}
+
 // NewInt64Counter 创建带预置标签的 Int64Counter
 func NewInt64Counter(name string, labelNames []string, options ...metric.Int64CounterOption) *Int64Counter {
-	counter, err := otel.Meter(apptools.Name).Int64Counter(name, options...)
+	counter, err := otel.Meter(apptools.Name).Int64Counter(withPrefix(name), options...)
 	if err != nil {
 		panic(err)
 	}
@@ -53,7 +66,7 @@ func NewInt64Counter(name string, labelNames []string, options ...metric.Int64Co
 
 // NewInt64UpDownCounter 创建带预置标签的 Int64UpDownCounter
 func NewInt64UpDownCounter(name string, labelNames []string, options ...metric.Int64UpDownCounterOption) *Int64UpDownCounter {
-	counter, err := otel.Meter(apptools.Name).Int64UpDownCounter(name, options...)
+	counter, err := otel.Meter(apptools.Name).Int64UpDownCounter(withPrefix(name), options...)
 	if err != nil {
 		panic(err)
 	}
@@ -68,7 +81,7 @@ func NewInt64UpDownCounter(name string, labelNames []string, options ...metric.I
 
 // NewInt64Histogram 创建带预置标签的 Int64Histogram
 func NewInt64Histogram(name string, labelNames []string, options ...metric.Int64HistogramOption) *Int64Histogram {
-	histogram, err := otel.Meter(apptools.Name).Int64Histogram(name, options...)
+	histogram, err := otel.Meter(apptools.Name).Int64Histogram(withPrefix(name), options...)
 	if err != nil {
 		panic(err)
 	}
@@ -83,7 +96,7 @@ func NewInt64Histogram(name string, labelNames []string, options ...metric.Int64
 
 // NewInt64Gauge 创建带预置标签的 Int64Gauge
 func NewInt64Gauge(name string, labelNames []string, options ...metric.Int64GaugeOption) *Int64Gauge {
-	gauge, err := otel.Meter(apptools.Name).Int64Gauge(name, options...)
+	gauge, err := otel.Meter(apptools.Name).Int64Gauge(withPrefix(name), options...)
 	if err != nil {
 		panic(err)
 	}
@@ -98,7 +111,7 @@ func NewInt64Gauge(name string, labelNames []string, options ...metric.Int64Gaug
 
 // NewFloat64Counter 创建带预置标签的 Float64Counter
 func NewFloat64Counter(name string, labelNames []string, options ...metric.Float64CounterOption) *Float64Counter {
-	counter, err := otel.Meter(apptools.Name).Float64Counter(name, options...)
+	counter, err := otel.Meter(apptools.Name).Float64Counter(withPrefix(name), options...)
 	if err != nil {
 		panic(err)
 	}
@@ -113,7 +126,7 @@ func NewFloat64Counter(name string, labelNames []string, options ...metric.Float
 
 // NewFloat64UpDownCounter 创建带预置标签的 Float64UpDownCounter
 func NewFloat64UpDownCounter(name string, labelNames []string, options ...metric.Float64UpDownCounterOption) *Float64UpDownCounter {
-	counter, err := otel.Meter(apptools.Name).Float64UpDownCounter(name, options...)
+	counter, err := otel.Meter(apptools.Name).Float64UpDownCounter(withPrefix(name), options...)
 	if err != nil {
 		panic(err)
 	}
@@ -128,7 +141,7 @@ func NewFloat64UpDownCounter(name string, labelNames []string, options ...metric
 
 // NewFloat64Histogram 创建带预置标签的 Float64Histogram
 func NewFloat64Histogram(name string, labelNames []string, options ...metric.Float64HistogramOption) *Float64Histogram {
-	histogram, err := otel.Meter(apptools.Name).Float64Histogram(name, options...)
+	histogram, err := otel.Meter(apptools.Name).Float64Histogram(withPrefix(name), options...)
 	if err != nil {
 		panic(err)
 	}
@@ -143,7 +156,7 @@ func NewFloat64Histogram(name string, labelNames []string, options ...metric.Flo
 
 // NewFloat64Gauge 创建带预置标签的 Float64Gauge
 func NewFloat64Gauge(name string, labelNames []string, options ...metric.Float64GaugeOption) *Float64Gauge {
-	gauge, err := otel.Meter(apptools.Name).Float64Gauge(name, options...)
+	gauge, err := otel.Meter(apptools.Name).Float64Gauge(withPrefix(name), options...)
 	if err != nil {
 		panic(err)
 	}

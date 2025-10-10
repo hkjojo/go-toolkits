@@ -1,8 +1,6 @@
 package metric
 
 import (
-	"github.com/hkjojo/go-toolkits/apptools"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 )
 
@@ -19,50 +17,42 @@ const (
 
 // ServerRequestCounter 返回服务端请求计数器
 func ServerRequestCounter() metric.Int64Counter {
-	counter, err := otel.Meter(apptools.Name).Int64Counter(
+	return NewInt64Counter(
 		ServerRequestsTotal,
+		[]string{},
 		metric.WithUnit(UnitCall),
-		metric.WithDescription("The total number of server processed requests"))
-	if err != nil {
-		panic(err)
-	}
-	return counter
+		metric.WithDescription("The total number of server processed requests"),
+	).Int64Counter
 }
 
 // ClientRequestCounter 返回客户端请求计数器
 func ClientRequestCounter() metric.Int64Counter {
-	counter, err := otel.Meter(apptools.Name).Int64Counter(
+	return NewInt64Counter(
 		ClientRequestsTotal,
+		[]string{},
 		metric.WithUnit(UnitCall),
-		metric.WithDescription("The total number of client processed requests"))
-	if err != nil {
-		panic(err)
-	}
-	return counter
+		metric.WithDescription("The total number of client processed requests"),
+	).Int64Counter
 }
 
 // ServerRequestHistogram 返回服务端请求耗时直方图
 func ServerRequestHistogram() metric.Float64Histogram {
-	histogram, err := otel.Meter(apptools.Name).Float64Histogram(
+	return NewFloat64Histogram(
 		ServerRequestsDuration,
+		[]string{},
 		metric.WithUnit(UnitSeconds),
-		metric.WithDescription("The duration of HTTP requests processed by the server"))
-	if err != nil {
-		panic(err)
-	}
-	return histogram
+		metric.WithDescription("The duration of HTTP requests processed by the server"),
+	).Float64Histogram
 }
 
 // ClientRequestHistogram 返回客户端请求耗时直方图
 func ClientRequestHistogram() metric.Float64Histogram {
-	histogram, err := otel.Meter(apptools.Name).Float64Histogram(
+	return NewFloat64Histogram(
 		ClientRequestsDuration,
+		[]string{},
 		metric.WithUnit(UnitSeconds),
-		metric.WithDescription("The duration of HTTP requests processed by the client"))
-	if err != nil {
-		panic(err)
-	}
-	return histogram
+		metric.WithDescription("The duration of HTTP requests processed by the client"),
+	).Float64Histogram
 }
 
 // NewConnectionsCounter 创建网络连接计数器
