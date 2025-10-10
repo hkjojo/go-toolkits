@@ -9,6 +9,18 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
+// 单位常量（已在 metric.go 中定义，这里重新导出方便使用）
+const (
+	UnitDimensionless = "1"      // 无量纲
+	UnitBytes         = "By"     // 字节
+	UnitMilliseconds  = "ms"     // 毫秒
+	UnitSeconds       = "s"      // 秒
+	UnitMicroseconds  = "us"     // 微秒
+	UnitNanoseconds   = "ns"     // 纳秒
+	UnitPercent       = "%"      // 百分比
+	UnitCall          = "{call}" // 调用次数
+)
+
 // baseMetric 基础指标结构体，包含通用字段和方法
 type baseMetric struct {
 	labelNames []string
@@ -19,7 +31,7 @@ type baseMetric struct {
 func (b *baseMetric) With(labelValues []string) {
 	maxIndex := min(len(labelValues), len(b.labelNames))
 	attrs := make([]attribute.KeyValue, 0, maxIndex)
-	for i := 0; i < maxIndex; i++ {
+	for i := range maxIndex {
 		attrs = append(attrs, attribute.String(b.labelNames[i], labelValues[i]))
 	}
 	b.attrs = attrs

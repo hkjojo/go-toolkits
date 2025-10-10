@@ -19,16 +19,6 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 )
 
-const (
-	Dimensionless = "1"
-	Bytes         = "By"
-	Milliseconds  = "ms"
-	Seconds       = "s"
-	Microseconds  = "us"
-	Nanoseconds   = "ns"
-	Percent       = "%"
-)
-
 var (
 	// 全局配置
 	globalConfig = &Config{
@@ -46,6 +36,7 @@ func NewMetricProvider(ops ...Option) (metric.MeterProvider, func(), error) {
 	options := []otlpmetricgrpc.Option{
 		otlpmetricgrpc.WithInsecure(),
 	}
+
 	if globalConfig.Endpoint != "" {
 		options = append(options, otlpmetricgrpc.WithEndpoint(globalConfig.Endpoint))
 	}
@@ -57,59 +48,65 @@ func NewMetricProvider(ops ...Option) (metric.MeterProvider, func(), error) {
 		return nil, nil, err
 	}
 
-	// Create resource
+	// 创建资源（Resource），用于描述当前服务的元数据信息
 	res, err := resource.New(ctx,
-		resource.WithFromEnv(),
-		resource.WithHost(),
-		resource.WithAttributes(
-			semconv.ServiceName(apptools.Name),
-			semconv.ServiceVersion(apptools.Version),
-			semconv.DeploymentEnvironment(apptools.Env),
+		resource.WithFromEnv(), // 从环境变量中读取资源属性（如 OTEL_RESOURCE_ATTRIBUTES）
+		resource.WithHost(),    // 添加主机信息（主机名、操作系统等）
+		resource.WithAttributes( // 添加自定义属性
+			semconv.ServiceName(apptools.Name),          // 服务名称
+			semconv.ServiceVersion(apptools.Version),    // 服务版本
+			semconv.DeploymentEnvironment(apptools.Env), // 部署环境（如 dev、staging、prod）
 		),
 	)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// Create meter provider with period reader
-	exporter.Temporality(0)
-	exporter.Aggregation(sdkmetric.InstrumentKindHistogram)
-
+	// 构建 MeterProvider 的配置选项
 	opts := []sdkmetric.Option{
+		// 使用周期性读取器，按配置的间隔（默认 1 分钟）定期推送指标数据
 		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exporter, sdkmetric.WithInterval(globalConfig.Interval))),
+		// 关联资源信息，所有 metric 都会包含这些元数据
 		sdkmetric.WithResource(res),
 	}
 
+	// 如果配置了默认前缀，添加 View 来为所有指标名称添加前缀
 	if globalConfig.DefaultPrefix != "" {
 		opts = append(opts, sdkmetric.WithView(sdkmetric.NewView(
-			sdkmetric.Instrument{Name: ".*"}, // 匹配所有 metric
-			sdkmetric.Stream{
-				Name: fmt.Sprintf("%s_${name}", globalConfig.DefaultPrefix), // 给所有 metric 名字加前缀
+			sdkmetric.Instrument{Name: ".*"}, // 匹配所有 metric（正则表达式）
+			sdkmetric.Stream{ // 定义新的 stream
+				Name: fmt.Sprintf("%s_${name}", globalConfig.DefaultPrefix), // 给所有 metric 名字加前缀，${name} 会被替换为原始名称
 			},
 		)))
 	}
 
 	mp := sdkmetric.NewMeterProvider(opts...)
 
-	// Set global meter provider
+	// 设置全局的 MeterProvider，后续通过 otel.Meter() 获取的都是这个 provider
 	otel.SetMeterProvider(mp)
 
 	if globalConfig.Debug {
-		stdr.SetVerbosity(8)
+		stdr.SetVerbosity(8) // 设置日志详细级别为 8（最详细）
+		// 将 OpenTelemetry 的日志输出到标准输出，包含时间戳和文件位置
 		otel.SetLogger(stdr.New(log.New(os.Stdout, "", log.LstdFlags|log.Lshortfile)))
 	}
 
+	// 如果配置了初始化回调函数，执行它
+	// 可用于在 MeterProvider 创建后执行自定义的初始化逻辑（如注册自定义指标）
 	if globalConfig.InitCallback != nil {
 		globalConfig.InitCallback()
 	}
 
-	// 注册up指标
+	// 注册 "server_up" 指标，用于标识服务是否在线
+	// 可通过 WithoutUpMetric() 选项禁用
 	if !globalConfig.WithoutUp {
 		registerUpMetric()
 	}
 
-	// 注册运行时统计指标
+	// 注册 Go runtime 统计指标（如内存使用、GC 次数、goroutine 数量等）
+	// 可通过 WithStatsMetric() 选项启用
 	if globalConfig.CollectStats {
+		// 启动 runtime 指标收集，最小采集间隔为 10 秒
 		err := contribruntime.Start(contribruntime.WithMinimumReadMemStatsInterval(10 * time.Second))
 		if err != nil {
 			return nil, nil, err
@@ -117,7 +114,7 @@ func NewMetricProvider(ops ...Option) (metric.MeterProvider, func(), error) {
 	}
 
 	shutdown := func() {
-		ctx, cancel := context.WithTimeout(ctx, time.Second*5)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		defer cancel()
 		if err := mp.Shutdown(ctx); err != nil {
 			otel.Handle(err)
@@ -144,31 +141,13 @@ func initConfig(ops ...Option) {
 // registerUpMetric 注册服务状态指标 "server_name"
 func registerUpMetric() {
 	upGauge, err := otel.Meter(apptools.Name).Int64Gauge(
-		"server_up",
-		metric.WithDescription("The service up status"),
+		ServerUp,
+		metric.WithDescription("The service health status (1 = healthy, 0 = unhealthy)"),
 	)
 	if err != nil {
 		panic(err)
 	}
 	upGauge.Record(context.Background(), 1, metric.WithAttributes(attribute.String("server_name", apptools.Name)))
-}
-
-// NewConnectionsCounter "kind"
-func NewConnectionsCounter() *Int64UpDownCounter {
-	return NewInt64UpDownCounter(
-		"network_connections_total",
-		[]string{"kind"},
-		metric.WithDescription("The total number of connections in memory like (fix/grpc stream/ws/tcp"),
-	)
-}
-
-// NewQuoteCounter "symbol"
-func NewQuoteCounter() *Int64Counter {
-	return NewInt64Counter(
-		"symbol_quote_count",
-		[]string{"symbol"},
-		metric.WithDescription("The total number of symbol quote"),
-	)
 }
 
 // Config metric配置
