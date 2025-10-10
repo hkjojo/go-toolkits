@@ -8,8 +8,8 @@ import (
 const (
 	ServerRequestsTotal     = "server_requests_code_total"
 	ClientRequestsTotal     = "client_requests_code_total"
-	ServerRequestsDuration  = "server_requests_seconds_bucket"
-	ClientRequestsDuration  = "client_requests_seconds_bucket"
+	ServerRequestsDuration  = "server_requests_seconds"
+	ClientRequestsDuration  = "client_requests_seconds"
 	ServerUp                = "server_up"
 	NetworkConnectionsTotal = "network_connections"
 	SymbolQuoteTotal        = "symbol_quote_total"
