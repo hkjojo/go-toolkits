@@ -10,10 +10,10 @@ import (
 
 // go build -ldflags "-X package.Version=x.y.z"
 var (
-	// ...
+	// ConfigFilePath ...
 	ConfigFilePath string
-	// Name is the name of the compiled software.
-	Name = "acttrade.service.basic"
+	// Name is the service name of the compiled software.
+	Name = "actstrade.service.basic"
 	// Version is the version of the compiled software.
 	Version string
 	// Tag is for identify different envs like demo/live.
@@ -21,17 +21,17 @@ var (
 	// Env is used to specify the running environment.
 	Env string
 
-	// node name from k8s cluster
+	// ClusterNodeName node name from k8s cluster
 	ClusterNodeName string
-	// pod name from k8s cluster
+	// ClusterPodName pod name from k8s cluster
 	ClusterPodName string
-	// Datadog agent host
+	// DDAgentHost Datadog agent host
 	DDAgentHost string
 	ID, _       = os.Hostname()
 
 	EmptyApp = &cli.App{}
 
-	// options and changable, only for mapping mt5/mt4 demo/live
+	// TagFlag options and changable, only for mapping mt5/mt4 demo/live
 	TagFlag = &cli.StringFlag{
 		Name:        "service_tag",
 		Aliases:     []string{"tag"},

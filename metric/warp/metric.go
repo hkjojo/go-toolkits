@@ -8,7 +8,6 @@ import (
 	tlog "github.com/hkjojo/go-toolkits/log/v2"
 	tlogk "github.com/hkjojo/go-toolkits/log/v2/kratos"
 	"github.com/hkjojo/go-toolkits/metric"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 import "C"
@@ -43,6 +42,7 @@ func Start(
 	env *C.char,
 	tag *C.char,
 	logPath *C.char,
+	mode *C.char,
 	mtStateEnable bool,
 	mtGatewayStateEnable bool,
 	outErr **C.char,
@@ -61,18 +61,17 @@ func Start(
 	}
 
 	clearup, err = metric.Start(
-		metric.WithInterval(time.Second*10),
-		metric.WithJSONLoggerWriter(
-			tlogk.NewHelper(
-				log.With(logger,
-					MetaKey_ENV, C.GoString(env),
-					MetaKey_TAG, C.GoString(tag),
-					MetaKey_HOSTNAME, C.GoString(hostname),
-					MetaKey_SERVICE, C.GoString(serverName),
-					MetaKey_VERSION, C.GoString(version),
-				),
+		tlogk.NewHelper(
+			log.With(logger,
+				MetaKey_ENV, C.GoString(env),
+				MetaKey_TAG, C.GoString(tag),
+				MetaKey_HOSTNAME, C.GoString(hostname),
+				MetaKey_SERVICE, C.GoString(serverName),
+				MetaKey_VERSION, C.GoString(version),
 			),
 		),
+		metric.WithInterval(time.Second*10),
+		metric.WithMode(metric.Mode(C.GoString(mode))),
 	)
 	if err != nil {
 		*outErr = C.CString(err.Error())
@@ -80,10 +79,10 @@ func Start(
 	}
 
 	if mtStateEnable {
-		mt5State = metric.NewGauge(metric.MT5StateGauge)
+		mt5State = metric.MT5StateGauge()
 	}
 	if mtGatewayStateEnable {
-		mt5GatewayState = metric.NewGauge(metric.MT5GatewayStateGauge)
+		mt5GatewayState = metric.MT5GatewayStateGauge()
 	}
 }
 
@@ -136,38 +135,19 @@ func MT5GatewayStateDelete(lvs **C.char, lvsLen C.int) {
 //export AddCounter
 func AddCounter(nameSpace *C.char, subsystem *C.char, name *C.char, help *C.char,
 	labelNames **C.char, labelNamesLen C.int) {
-	counters[C.GoString(name)] = metric.NewCounter(prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: C.GoString(nameSpace),
-			Subsystem: C.GoString(subsystem),
-			Name:      C.GoString(name),
-			Help:      C.GoString(help),
-		}, parse2Strings(labelNames, labelNamesLen)))
+	counters[C.GoString(name)] = metric.NewCounter(C.GoString(nameSpace), C.GoString(subsystem), C.GoString(name), C.GoString(help), parse2Strings(labelNames, labelNamesLen))
 }
 
 //export AddGauge
 func AddGauge(nameSpace *C.char, subsystem *C.char, name *C.char, help *C.char,
 	labelNames **C.char, labelNamesLen C.int) {
-	gauges[C.GoString(name)] = metric.NewGauge(prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: C.GoString(nameSpace),
-			Subsystem: C.GoString(subsystem),
-			Name:      C.GoString(name),
-			Help:      C.GoString(help),
-		}, parse2Strings(labelNames, labelNamesLen)))
+	gauges[C.GoString(name)] = metric.NewGauge(C.GoString(nameSpace), C.GoString(subsystem), C.GoString(name), C.GoString(help), parse2Strings(labelNames, labelNamesLen))
 }
 
 //export AddHistogram
 func AddHistogram(nameSpace *C.char, subsystem *C.char, name *C.char, help *C.char,
 	buckets []float64, labelNames **C.char, labelNamesLen C.int) {
-	observers[C.GoString(name)] = metric.NewHistogram(prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Namespace: C.GoString(nameSpace),
-			Subsystem: C.GoString(subsystem),
-			Name:      C.GoString(name),
-			Help:      C.GoString(help),
-			Buckets:   buckets,
-		}, parse2Strings(labelNames, labelNamesLen)))
+	observers[C.GoString(name)] = metric.NewHistogram(C.GoString(nameSpace), C.GoString(subsystem), C.GoString(name), C.GoString(help), parse2Strings(labelNames, labelNamesLen), buckets...)
 }
 
 //export CounterAdd

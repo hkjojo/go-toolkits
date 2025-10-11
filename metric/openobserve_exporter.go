@@ -2,6 +2,7 @@ package metric
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -17,68 +18,38 @@ import (
 )
 
 const (
-	streamLable       = "__name__"
-	metricLable       = "metric_name"
-	serverLable       = "server_name"
+	streamLabel       = "__name__"
+	metricLabel       = "metric_name"
+	serverLabel       = "server_name"
 	defaultStreamName = "go"
 )
 
 var (
-	metricNameRE  = regexp.MustCompile(`^[a-zA-Z_:][a-zA-Z0-9_:]*$`)
-	defaultWriter *openobserveWriter
+	// metricNameRE 用于验证Prometheus指标名称的正则表达式
+	// 规则：必须以字母、下划线或冒号开头，后续字符可以是字母、数字、下划线或冒号
+	// 符合Prometheus指标命名规范
+	metricNameRE = regexp.MustCompile(`^[a-zA-Z_:][a-zA-Z0-9_:]*$`)
 )
 
-type ErrorLogger interface {
-	Errorw(string, ...interface{})
-	Warnw(string, ...interface{})
-	Infow(string, ...interface{})
+// openobserveExporter 实现OpenObserve导出器
+type openobserveExporter struct {
+	init   bool
+	header map[string]string
+	client *http.Client
+	logger Logger
 }
 
-type PromOption func(*openobserveWriter)
-
-type openobserveWriter struct {
-	init        bool
-	endpoint    string
-	header      map[string]string
-	client      *http.Client
-	logger      ErrorLogger
-	serviceName string
-	streamName  string
-}
-
-// WithHTTPClient ...
-func WithHTTPClient(client *http.Client) PromOption {
-	return func(writer *openobserveWriter) {
-		writer.client = client
-	}
-}
-
-// WithEndpoint ...
-func WithEndpoint(endpoint string) PromOption {
-	return func(writer *openobserveWriter) {
-		writer.endpoint = endpoint
-	}
-}
-
-// WithHeader ...
-func WithHeader(header map[string]string) PromOption {
-	return func(writer *openobserveWriter) {
-		writer.header = header
-	}
-}
-
-func initOpenobserveWriter(logger ErrorLogger) {
-	defaultWriter = &openobserveWriter{
-		serviceName: os.Getenv("SERVICE_NAME"),
-		endpoint:    os.Getenv("METRIC_ENDPOINT"),
-		streamName:  os.Getenv("METRIC_OPENOBSERVE_STREAM_NAME"),
-		client:      &http.Client{Timeout: time.Second * 30},
-		logger:      logger,
+// newOpenobserveExporter 创建OpenObserve导出器
+func newOpenobserveExporter(logger Logger) Exporter {
+	exporter := &openobserveExporter{
+		client: &http.Client{Timeout: time.Second * 30},
+		logger: logger,
 	}
 
-	if defaultWriter.streamName == "" {
-		defaultWriter.streamName = defaultStreamName
+	if globalConfig.StreamName == "" {
+		globalConfig.StreamName = defaultStreamName
 	}
+
 	header, ok := os.LookupEnv("METRIC_HEADERS")
 	if ok {
 		hm := make(map[string]string)
@@ -89,26 +60,20 @@ func initOpenobserveWriter(logger ErrorLogger) {
 			}
 			hm[kv[0]] = kv[1]
 		}
-		defaultWriter.header = hm
-	}
-}
-
-func newOpenobserveWriter(logger ErrorLogger, opts ...PromOption) Writer {
-	initOpenobserveWriter(logger)
-	for _, option := range opts {
-		option(defaultWriter)
+		exporter.header = hm
 	}
 
-	if defaultWriter.endpoint != "" {
-		defaultWriter.init = true
-		logger.Infow("prom writer", "writer", fmt.Sprintf("%+v", *defaultWriter))
+	if globalConfig.Endpoint != "" {
+		exporter.init = true
+		logger.Infow("openobserve exporter initialized", "endpoint", globalConfig.Endpoint)
 	} else {
-		logger.Warnw("metric_internal_error", "error", "endpoint empty")
+		logger.Warnw("openobserve exporter not initialized", "err", "endpoint empty")
 	}
-	return defaultWriter
+	return exporter
 }
 
-func (w *openobserveWriter) Write(mf *dto.MetricFamily) {
+// Export 导出metric到OpenObserve
+func (w *openobserveExporter) Export(mf *dto.MetricFamily) {
 	if !w.init {
 		return
 	}
@@ -135,7 +100,7 @@ func (w *openobserveWriter) Write(mf *dto.MetricFamily) {
 		return
 	}
 
-	req, err = http.NewRequest(http.MethodPost, w.endpoint, bytes.NewBuffer(snappy.Encode(nil, pbBytes)))
+	req, err = http.NewRequest(http.MethodPost, globalConfig.Endpoint, bytes.NewBuffer(snappy.Encode(nil, pbBytes)))
 	if err != nil {
 		return
 	}
@@ -159,11 +124,22 @@ func (w *openobserveWriter) Write(mf *dto.MetricFamily) {
 	}
 }
 
-func (w *openobserveWriter) OnError(err error) {
+// OnError 处理错误
+func (w *openobserveExporter) OnError(err error) {
 	w.logger.Errorw("metric_internal_error", "error", err)
 }
 
-func (w *openobserveWriter) convert(mf *dto.MetricFamily) ([]prompb.TimeSeries, error) {
+// Shutdown 优雅关闭（OpenObserve导出器无需特殊关闭操作）
+func (w *openobserveExporter) Shutdown(ctx context.Context) error {
+	return nil
+}
+
+// IsStart 是否启用
+func (w *openobserveExporter) IsStart() bool {
+	return w.init
+}
+
+func (w *openobserveExporter) convert(mf *dto.MetricFamily) ([]prompb.TimeSeries, error) {
 	if !metricNameRE.MatchString(mf.GetName()) {
 		return nil, errors.New("invalid metrics name")
 	}
@@ -182,9 +158,9 @@ func (w *openobserveWriter) convert(mf *dto.MetricFamily) ([]prompb.TimeSeries, 
 	)
 	// reserved label name
 	defaultLbs = append(defaultLbs,
-		prompb.Label{Name: streamLable, Value: w.streamName},
-		prompb.Label{Name: serverLable, Value: w.serviceName},
-		prompb.Label{Name: metricLable, Value: mf.GetName()},
+		prompb.Label{Name: streamLabel, Value: globalConfig.StreamName},
+		prompb.Label{Name: serverLabel, Value: globalConfig.ServiceName},
+		prompb.Label{Name: metricLabel, Value: mf.GetName()},
 	)
 
 	for _, metric := range metrics {
@@ -254,13 +230,13 @@ func (w *openobserveWriter) convert(mf *dto.MetricFamily) ([]prompb.TimeSeries, 
 	return timeseries, nil
 }
 
-func (w *openobserveWriter) toPrometheusPbWriteRequest(mf *dto.MetricFamily) (*prompb.WriteRequest, error) {
+func (w *openobserveExporter) toPrometheusPbWriteRequest(mf *dto.MetricFamily) (*prompb.WriteRequest, error) {
 	ts, err := w.convert(mf)
 	if err != nil {
 		return nil, err
 	}
 	metadata := getMetadata(mf)
-	metadata.MetricFamilyName = w.streamName
+	metadata.MetricFamilyName = globalConfig.StreamName
 	return &prompb.WriteRequest{
 		Timeseries: ts,
 		Metadata:   []prompb.MetricMetadata{metadata},
