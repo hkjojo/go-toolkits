@@ -149,9 +149,7 @@ func Round(f float64, digits int) float64 {
 	return math.Round(p) / p10
 }
 
-// Match 高性能版本的掩码匹配函数，与MT5匹配逻辑一致
-// 集成了所有性能优化策略，提供最佳性能
-//
+// Match 与MT5匹配逻辑一致
 // 参数:
 //
 //	value: 要检查的字符串
@@ -218,7 +216,7 @@ func Match(value, pattern string) bool {
 	return found
 }
 
-// MatchSingle 高性能版本的模板匹配函数，单个匹配
+// MatchSingle 单个匹配
 func MatchSingle(value, expr string) bool {
 	// 检查输入参数
 	if expr == "" || value == "" {
@@ -250,7 +248,7 @@ func MatchSingle(value, expr string) bool {
 	}
 }
 
-// matchIterative 高性能迭代版本的匹配算法
+// matchIterative 高性能迭代匹配算法
 // 使用两个指针和回溯机制，避免递归调用
 // 时间复杂度：O(m*n)，空间复杂度：O(1)
 func matchIterative(value, expr string) bool {
