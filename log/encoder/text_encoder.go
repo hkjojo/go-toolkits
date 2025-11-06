@@ -8,24 +8,15 @@ import (
 	"sync"
 	"time"
 
-	atl "github.com/hkjojo/go-toolkits/apptools"
-
 	"go.uber.org/zap/buffer"
 	"go.uber.org/zap/zapcore"
 )
 
 const (
-	textTimeFormat = "2006-01-02T15:04:05.000Z"
+	TextTimeFormat = "2006-01-02T15:04:05.000Z"
 )
 
 const SPLIT = "\t"
-
-const (
-	SPLIT1 = "->"
-	SPLIT2 = "-->"
-	SPLIT3 = "--->"
-	SPLIT4 = "---->"
-)
 
 var (
 	_textPool = sync.Pool{New: func() interface{} {
@@ -45,6 +36,7 @@ func putTextEncoder(enc *textEncoder) {
 	enc.buf = nil
 	enc.reflectBuf = nil
 	enc.reflectEnc = nil
+	enc.headerFunc = nil
 	_textPool.Put(enc)
 }
 
@@ -53,13 +45,26 @@ type textEncoder struct {
 	buf        *buffer.Buffer
 	reflectBuf *buffer.Buffer
 	reflectEnc *json.Encoder
+	headerFunc HeaderFunc
 }
 
-func NewTextEncoder(cfg zapcore.EncoderConfig) zapcore.Encoder {
-	return &textEncoder{
+type HeaderFunc func(enc zapcore.PrimitiveArrayEncoder, ent zapcore.Entry, fields map[string]zapcore.Field)
+
+type TextOption func(*textEncoder)
+
+func WithHeader(f HeaderFunc) TextOption { return func(e *textEncoder) { e.headerFunc = f } }
+
+func NewTextEncoder(cfg zapcore.EncoderConfig, opts ...TextOption) zapcore.Encoder {
+	enc := &textEncoder{
 		EncoderConfig: &cfg,
 		buf:           _bufferPool.Get(),
 	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(enc)
+		}
+	}
+	return enc
 }
 
 func (enc *textEncoder) Clone() zapcore.Encoder {
@@ -72,57 +77,49 @@ func (enc *textEncoder) clone() *textEncoder {
 	clone := getTextEncoder()
 	clone.EncoderConfig = enc.EncoderConfig
 	clone.buf = _bufferPool.Get()
+	clone.headerFunc = enc.headerFunc
 	return clone
 }
 
-func (enc *textEncoder) formatHeader(t time.Time, level zapcore.Level) {
-	// time
-	enc.AppendString(t.UTC().Format(textTimeFormat))
+func (enc *textEncoder) formatHeader(ent zapcore.Entry, fields map[string]zapcore.Field) {
+	if enc.headerFunc != nil {
+		enc.headerFunc(enc, ent, fields)
+		return
+	}
+	enc.AppendString(ent.Time.UTC().Format(TextTimeFormat))
 	enc.AppendString(SPLIT)
-
-	// level
-	enc.EncodeLevel(level, enc)
+	enc.EncodeLevel(ent.Level, enc)
 	enc.AppendString(SPLIT)
 }
 
-// EncodeEntry time->|level-|>module->|source->|msg
 func (enc *textEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (*buffer.Buffer, error) {
 	final := enc.clone()
 
-	final.formatHeader(ent.Time, ent.Level)
-
+	fieldsMap := make(map[string]zapcore.Field)
 	for _, field := range fields {
-		if field.Key == atl.MetaKey_ENV || field.Key == atl.MetaKey_HOSTNAME || field.Key == atl.MetaKey_SERVICE ||
-			field.Key == atl.MetaKey_VERSION || field.Key == atl.MetaKey_INSTANCE || field.Key == atl.MetaKey_CALLER {
-			continue
-		}
-		// replace key when system log occur
-		if field.Key == "msg" {
-			// append log module
-			final.AppendString("System")
-			final.AppendString(SPLIT)
-			// append log source
-			final.AppendString("Server")
-			final.AppendString(SPLIT)
-			// append msg
-			final.AppendString(field.String)
-			break
-		}
-		// append log module
-		final.AppendString(field.Key)
-		final.AppendString(SPLIT)
-		// append log source
-		final.AppendString(field.String)
-		final.AppendString(SPLIT)
-		break
+		fieldsMap[field.Key] = field
 	}
 
-	// message
+	final.formatHeader(ent, fieldsMap)
+
 	if final.MessageKey != "" {
 		final.AppendString(ent.Message)
+		final.AppendString(SPLIT)
 	}
 
-	final.AppendString("\n")
+	for _, field := range fieldsMap {
+		final.AppendString(field.Key)
+		final.AppendString(SPLIT)
+
+		val := field.String
+		if val == "" {
+			val = fmt.Sprintf("%v", field.Interface)
+		}
+		final.AppendString(val)
+		final.AppendString(SPLIT)
+	}
+
+	final.buf.AppendByte('\n')
 
 	ret := final.buf
 	putTextEncoder(final)

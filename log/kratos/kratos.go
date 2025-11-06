@@ -2,6 +2,7 @@ package kratos
 
 import (
 	"fmt"
+
 	"github.com/go-kratos/kratos/v2/log"
 	"go.uber.org/zap"
 
@@ -12,8 +13,8 @@ type logger struct {
 	*tklog.Logger
 }
 
-func NewZapLog(cfg *tklog.Config) (log.Logger, error) {
-	tklogger, err := tklog.New(cfg)
+func NewZapLog(cfg *tklog.Config, opts ...tklog.Option) (log.Logger, error) {
+	tklogger, err := tklog.New(cfg, opts...)
 	if err != nil {
 		return nil, err
 	}

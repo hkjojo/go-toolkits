@@ -174,7 +174,7 @@ func (enc *fixEncoder) AddString(k string, v string) {
 }
 
 // AddTime implements ObjectEncoder.
-func (enc fixEncoder) AddTime(k string, v time.Time) {
+func (enc *fixEncoder) AddTime(k string, v time.Time) {
 	enc.buf.AppendString(k)
 	enc.AppendTime(v)
 }

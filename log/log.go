@@ -99,8 +99,14 @@ func (log *Logger) Sugar() *SugaredLogger {
 // Fields ...
 type Fields map[string]interface{}
 
-// New ..
-func New(config *Config) (*Logger, error) {
+type Option func() *EncoderOptions
+
+type EncoderOptions struct {
+	Text []encoder.TextOption
+	//Fix []encode.FixOption
+}
+
+func New(config *Config, opts ...Option) (*Logger, error) {
 	var (
 		lvl        zapcore.Level
 		err        error
@@ -113,9 +119,6 @@ func New(config *Config) (*Logger, error) {
 	)
 	if config.Level != "" {
 		lvl = hook.ParseLevel(config.Level)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	if config.Path != "" {
@@ -186,13 +189,25 @@ func New(config *Config) (*Logger, error) {
 		EncodeCaller:   zapcore.ShortCallerEncoder,
 	}
 
+	var optsAgg EncoderOptions
+	for _, opt := range opts {
+		if opt != nil {
+			v := opt()
+			if v != nil {
+				if len(v.Text) > 0 {
+					optsAgg.Text = append(optsAgg.Text, v.Text...)
+				}
+			}
+		}
+	}
+
 	switch strings.ToLower(config.Format) {
 	case "json":
 		ecoder = zapcore.NewJSONEncoder(encoderConfig)
 	case "fix":
 		ecoder = encoder.NewFixEncoder(encoderConfig)
 	case "text":
-		ecoder = encoder.NewTextEncoder(encoderConfig)
+		ecoder = encoder.NewTextEncoder(encoderConfig, optsAgg.Text...)
 	default:
 		ecoder = zapcore.NewConsoleEncoder(encoderConfig)
 	}
