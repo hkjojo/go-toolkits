@@ -28,7 +28,8 @@ type Builder struct {
 	sourceFactory NewSourceFunc
 	funcs         []NewAppFunc
 
-	enableGops bool
+	enableGops    bool
+	enableMetaKey bool
 }
 
 type App struct {
@@ -106,6 +107,11 @@ func (b *Builder) WithGops() *Builder {
 	return b
 }
 
+func (b *Builder) WithMetaKey() *Builder {
+	b.enableMetaKey = true
+	return b
+}
+
 // Build return cleanup function and error
 func (b *Builder) Build() (*App, func(), error) {
 	app := &App{}
@@ -139,7 +145,10 @@ func (b *Builder) Build() (*App, func(), error) {
 			return nil, nil, err
 		}
 
-		app.logger = WithMetaKeys(logger)
+		app.logger = logger
+		if b.enableMetaKey {
+			app.logger = WithMetaKeys(logger)
+		}
 	}
 
 	var cleanups []func()

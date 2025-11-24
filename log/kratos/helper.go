@@ -2,6 +2,7 @@ package kratos
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strconv"
 
@@ -51,6 +52,52 @@ func (h *Helper) Errorw(msg string, keyvals ...interface{}) {
 // Fatalw logs a message at fatal level.
 func (h *Helper) Fatalw(msg string, keyvals ...interface{}) {
 	h.log(log.LevelFatal, append(keyvals, append(h.kvs, msgkey(msg))...)...)
+	os.Exit(1)
+}
+
+// Debugf logs a message at debug level.
+func (h *Helper) Debugf(format string, arg ...interface{}) {
+	if len(arg) > 0 {
+		format = fmt.Sprintf(format, arg...)
+	}
+
+	h.log(log.LevelDebug, append(h.kvs, msgkey(format))...)
+}
+
+// Infof logs a message at info level.
+func (h *Helper) Infof(format string, arg ...interface{}) {
+	if len(arg) > 0 {
+		format = fmt.Sprintf(format, arg...)
+	}
+
+	h.log(log.LevelInfo, append(h.kvs, msgkey(format))...)
+}
+
+// Warnf logs a message at warnf level.
+func (h *Helper) Warnf(format string, arg ...interface{}) {
+	if len(arg) > 0 {
+		format = fmt.Sprintf(format, arg...)
+	}
+
+	h.log(log.LevelWarn, append(h.kvs, msgkey(format))...)
+}
+
+// Errorf logs a message at error level.
+func (h *Helper) Errorf(format string, arg ...interface{}) {
+	if len(arg) > 0 {
+		format = fmt.Sprintf(format, arg...)
+	}
+
+	h.log(log.LevelError, append(h.kvs, msgkey(format))...)
+}
+
+// Fatalf logs a message at fatal level.
+func (h *Helper) Fatalf(format string, arg ...interface{}) {
+	if len(arg) > 0 {
+		format = fmt.Sprintf(format, arg...)
+	}
+
+	h.log(log.LevelFatal, append(h.kvs, msgkey(format))...)
 	os.Exit(1)
 }
 
