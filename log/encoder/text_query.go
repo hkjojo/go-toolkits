@@ -1,3 +1,10 @@
+// Package encoder Text log query utilities
+// Usage:
+// - Build a ListLogReq with From/To in TextTimeLayout (UTC) and FieldNames defining the log column order.
+// - FieldNames must include "time"; its index determines which column is parsed as time.
+// - Optional: set Separator (default tab), Level, Message and Filters for matching.
+// - Logs are read from daily files named <pathPrefix>.YYYYMMDD.
+// - Call QueryLogs(req, pathPrefix) to get ListLogRep with each record in Fields keyed by FieldNames.
 package encoder
 
 import (
@@ -11,15 +18,10 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	pbc "git.gonit.codes/dealer/actshub/protocol/go/common/v1"
-	mp "github.com/edsrzf/mmap-go"
 )
 
 const logLimit = 10000
 const dataSize = 1024 * 1024 * 200
-const logTimeLayout = "2006-01-02T15:04:05.000Z"
-const splitForm = "\t"
 
 var total int32
 
@@ -30,13 +32,33 @@ type Manager struct {
 	needMsgMatch bool
 	msgPattern   []byte
 	limit        int32
+	separator    string
+	fieldNames   []string
 }
 
 type timeParser struct {
 	buf [24]byte
 }
 
-func newManager(req *pbc.ListLogReq, path string, limit int32) *Manager {
+type ListLogReq struct {
+	From       string             // inclusive start time, format TextTimeLayout (UTC)
+	To         string             // inclusive end time, format TextTimeLayout (UTC)
+	Level      *string            // optional exact level filter (e.g., "INFO"), nil = no filter
+	Message    *string            // optional substring match on message field, nil = no filter
+	Separator  *string            // optional field separator (default: tab "\t")
+	FieldNames []string           // ordered field names for each log part; must include "time"
+	Filters    map[string]*string // optional exact-match filters by field name; "message" uses contains
+}
+
+type Log struct {
+	Fields map[string]string
+}
+
+type ListLogRep struct {
+	Logs []*Log
+}
+
+func newManager(req *ListLogReq, path string, limit int32) *Manager {
 	index := strings.LastIndex(path, "/")
 	mgr := &Manager{
 		timeParser: &timeParser{},
@@ -53,6 +75,11 @@ func newManager(req *pbc.ListLogReq, path string, limit int32) *Manager {
 		mgr.needMsgMatch = true
 		mgr.msgPattern = []byte(*req.Message)
 	}
+	mgr.separator = SPLIT
+	if req.Separator != nil {
+		mgr.separator = *req.Separator
+	}
+	mgr.fieldNames = req.FieldNames
 	total = 0
 
 	return mgr
@@ -63,8 +90,11 @@ type chunkRange struct {
 	End   int // exclude the end
 }
 
-func QueryLogs(req *pbc.ListLogReq, path string) (*pbc.ListLogRep, error) {
+func QueryLogs(req *ListLogReq, path string) (*ListLogRep, error) {
 	mgr := newManager(req, path, logLimit)
+	if len(req.FieldNames) == 0 || req.FieldNames[0] != "time" {
+		return nil, fmt.Errorf("first field must be time")
+	}
 	fromTime, toTime, err := parseTimeRange(req.From, req.To)
 	if err != nil {
 		return nil, fmt.Errorf("invalid time range: %v", err)
@@ -76,22 +106,23 @@ func QueryLogs(req *pbc.ListLogReq, path string) (*pbc.ListLogRep, error) {
 		return nil, err
 	}
 
-	return &pbc.ListLogRep{Logs: results}, nil
+	return &ListLogRep{Logs: results}, nil
 }
 
 func parseTimeRange(fromStr, toStr string) (from, to time.Time, err error) {
-	fromStr = fromStr[:10]
-	toStr = toStr[:10]
 	loc, _ := time.LoadLocation("UTC")
-
-	if from, err = time.ParseInLocation("2006-01-02", fromStr, loc); err != nil {
-		return
+	f, err := time.Parse(TextTimeLayout, strings.TrimSpace(fromStr))
+	if err != nil {
+		return time.Time{}, time.Time{}, err
 	}
-	if to, err = time.ParseInLocation("2006-01-02", toStr, loc); err != nil {
-		return
+	t, err := time.Parse(TextTimeLayout, strings.TrimSpace(toStr))
+	if err != nil {
+		return time.Time{}, time.Time{}, err
 	}
-
-	to = to.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
+	f = f.In(loc)
+	t = t.In(loc)
+	from = time.Date(f.Year(), f.Month(), f.Day(), 0, 0, 0, 0, loc)
+	to = time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 0, loc)
 	return
 }
 
@@ -109,8 +140,8 @@ func (m *Manager) generateLogFilePaths(from, to time.Time) []string {
 	return paths
 }
 
-func (m *Manager) processFiles(paths []string, req *pbc.ListLogReq) ([]*pbc.ListLogRep_Log, error) {
-	var finalResults []*pbc.ListLogRep_Log
+func (m *Manager) processFiles(paths []string, req *ListLogReq) ([]*Log, error) {
+	var finalResults []*Log
 
 	for _, path := range paths {
 		if total >= m.limit {
@@ -129,18 +160,11 @@ func (m *Manager) processFiles(paths []string, req *pbc.ListLogReq) ([]*pbc.List
 }
 
 // process single log file
-func (m *Manager) processLogFile(path string, req *pbc.ListLogReq) ([]*pbc.ListLogRep_Log, error) {
-	f, err := os.OpenFile(path, os.O_RDWR, 0644)
+func (m *Manager) processLogFile(path string, req *ListLogReq) ([]*Log, error) {
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
-
-	data, err := mp.Map(f, mp.RDWR, 0)
-	if err != nil {
-		return nil, err
-	}
-	defer data.Unmap()
 
 	var chunkNum = 1
 	if len(data) > dataSize {
@@ -149,7 +173,7 @@ func (m *Manager) processLogFile(path string, req *pbc.ListLogReq) ([]*pbc.ListL
 
 	chunks := splitDataToChunks(data, chunkNum)
 
-	var results []*pbc.ListLogRep_Log
+	var results []*Log
 
 	for _, chunk := range chunks {
 		if total >= m.limit {
@@ -194,7 +218,7 @@ func (p *timeParser) Parse(b []byte) (time.Time, error) {
 		return time.Time{}, fmt.Errorf("invalid time length")
 	}
 	copy(p.buf[:], b[:24])
-	return time.Parse(logTimeLayout, string(p.buf[:]))
+	return time.Parse(TextTimeLayout, string(p.buf[:]))
 }
 
 func (m *Manager) getChunkTimeRange(data []byte, cr chunkRange) (from, to time.Time, valid bool) {
@@ -218,20 +242,20 @@ func (m *Manager) getChunkTimeRange(data []byte, cr chunkRange) (from, to time.T
 	return from, to, false
 }
 
-func (m *Manager) processChunk(data []byte, cr chunkRange, req *pbc.ListLogReq) []*pbc.ListLogRep_Log {
+func (m *Manager) processChunk(data []byte, cr chunkRange, req *ListLogReq) []*Log {
 	defer func() {
 		if err := recover(); err != nil {
 		}
 	}()
 
-	reqFrom, _ := time.Parse(logTimeLayout, req.From)
-	reqTo, _ := time.Parse(logTimeLayout, req.To)
+	reqFrom, _ := m.timeParser.Parse([]byte(strings.TrimSpace(req.From)))
+	reqTo, _ := m.timeParser.Parse([]byte(strings.TrimSpace(req.To)))
 	chunkFrom, chunkTo, ok := m.getChunkTimeRange(data, cr)
 	if ok && (chunkFrom.After(reqTo) || chunkTo.Before(reqFrom)) {
 		return nil
 	}
 
-	var results []*pbc.ListLogRep_Log
+	var results []*Log
 
 	start := cr.Start
 	if cr.Start > 0 {
@@ -278,8 +302,9 @@ func (m *Manager) processChunk(data []byte, cr chunkRange, req *pbc.ListLogReq) 
 			start = lineEnd + 1
 		}
 
-		logEntry, err := parseLogLine(string(lineData))
-		if err == nil && matchFilters(logEntry, req) {
+		sep := m.separator
+		logEntry, err := parseLogLine(string(lineData), sep, m.fieldNames)
+		if err == nil && m.matchFilters(logEntry, req, reqFrom, reqTo) {
 			results = append(results, logEntry)
 			total++
 		}
@@ -288,46 +313,52 @@ func (m *Manager) processChunk(data []byte, cr chunkRange, req *pbc.ListLogReq) 
 	return results
 }
 
-func parseLogLine(line string) (*pbc.ListLogRep_Log, error) {
-	parts := strings.Split(line, splitForm)
-	if len(parts) < 5 {
+func parseLogLine(line string, sep string, fieldNames []string) (*Log, error) {
+	parts := strings.Split(line, sep)
+	if len(fieldNames) == 0 || len(parts) < len(fieldNames) {
 		return nil, errors.New("invalid log format")
 	}
-
-	return &pbc.ListLogRep_Log{
-		Time:    parts[0],
-		Status:  parts[1],
-		Module:  parts[2],
-		Source:  parts[3],
-		Message: parts[4],
-	}, nil
+	entry := &Log{Fields: make(map[string]string)}
+	for i := 0; i < len(fieldNames); i++ {
+		name := fieldNames[i]
+		val := parts[i]
+		if name != "" {
+			entry.Fields[name] = val
+		}
+	}
+	return entry, nil
 }
 
-func matchFilters(entry *pbc.ListLogRep_Log, req *pbc.ListLogReq) bool {
-	if entry.Time < req.From || entry.Time > req.To {
+func (m *Manager) matchFilters(entry *Log, req *ListLogReq, reqFrom, reqTo time.Time) bool {
+	if tf := entry.Fields["time"]; tf != "" {
+		if t, err := m.timeParser.Parse([]byte(tf)); err != nil {
+			return false
+		} else {
+			if t.Before(reqFrom) || t.After(reqTo) {
+				return false
+			}
+		}
+	}
+	if req.Level != nil && *req.Level != entry.Fields["level"] {
 		return false
 	}
-	// filter status
-	if req.Status != nil && *req.Status != entry.Status {
+	if req.Message != nil && !strings.Contains(entry.Fields["message"], *req.Message) {
 		return false
 	}
-	// filter module
-	if req.Module != nil && *req.Module != entry.Module {
-		return false
+	if req.Filters != nil {
+		for k, v := range req.Filters {
+			if v == nil {
+				continue
+			}
+			if entry.Fields[k] != *v {
+				return false
+			}
+		}
 	}
-	// filter source
-	if req.Source != nil && *req.Source != entry.Source {
-		return false
-	}
-	// filter message
-	if req.Message != nil && !strings.Contains(entry.Message, *req.Message) {
-		return false
-	}
-
 	return true
 }
 
-func (m *Manager) sortResults(results []*pbc.ListLogRep_Log) *pbc.ListLogRep {
+func (m *Manager) sortResults(results []*Log) *ListLogRep {
 	type sortItem struct {
 		index      int
 		parsedTime time.Time
@@ -346,7 +377,7 @@ func (m *Manager) sortResults(results []*pbc.ListLogRep_Log) *pbc.ListLogRep {
 				wg.Done()
 			}()
 
-			if t, err := m.timeParser.Parse([]byte(results[idx].Time)); err == nil {
+			if t, err := m.timeParser.Parse([]byte(results[idx].Fields["time"])); err == nil {
 				items[idx] = sortItem{idx, t}
 			}
 		}(i)
@@ -359,9 +390,9 @@ func (m *Manager) sortResults(results []*pbc.ListLogRep_Log) *pbc.ListLogRep {
 	})
 
 	// combine results
-	sorted := make([]*pbc.ListLogRep_Log, len(results))
+	sorted := make([]*Log, len(results))
 	for i, item := range items {
 		sorted[i] = results[item.index]
 	}
-	return &pbc.ListLogRep{Logs: sorted}
+	return &ListLogRep{Logs: sorted}
 }

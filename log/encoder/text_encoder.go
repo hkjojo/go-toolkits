@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	TextTimeFormat = "2006-01-02T15:04:05.000Z"
+	TextTimeLayout = "2006-01-02T15:04:05.000Z"
 )
 
 const SPLIT = "\t"
@@ -82,14 +82,17 @@ func (enc *textEncoder) clone() *textEncoder {
 }
 
 func (enc *textEncoder) formatHeader(ent zapcore.Entry, fields map[string]zapcore.Field) {
+	// time must be first, can not be customized
+	enc.AppendString(ent.Time.UTC().Format(TextTimeLayout))
+	enc.AppendString(SPLIT)
+	enc.EncodeLevel(ent.Level, enc)
+	enc.AppendString(SPLIT)
+
 	if enc.headerFunc != nil {
 		enc.headerFunc(enc, ent, fields)
 		return
 	}
-	enc.AppendString(ent.Time.UTC().Format(TextTimeFormat))
-	enc.AppendString(SPLIT)
-	enc.EncodeLevel(ent.Level, enc)
-	enc.AppendString(SPLIT)
+
 }
 
 func (enc *textEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (*buffer.Buffer, error) {
