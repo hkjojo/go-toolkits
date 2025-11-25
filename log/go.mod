@@ -4,11 +4,8 @@ go 1.23
 
 toolchain go1.23.2
 
-replace git.gonit.codes/dealer/actshub/protocol => git.gonit.codes/dealer/actshub/protocol.git v0.0.0-20250304015232-148cb4efc948
-
 require (
 	github.com/Shopify/sarama v1.26.1
-	github.com/edsrzf/mmap-go v1.2.0
 	github.com/go-kratos/kratos/v2 v2.5.3
 	github.com/hkjojo/go-toolkits/apptools v1.0.5
 	github.com/jinzhu/copier v0.3.5
@@ -19,7 +16,6 @@ require (
 )
 
 require (
-	git.gonit.codes/dealer/actshub/protocol v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-go/v5 v5.0.2 // indirect
 	github.com/DataDog/gostackparse v0.5.0 // indirect
 	github.com/Microsoft/go-winio v0.5.1 // indirect

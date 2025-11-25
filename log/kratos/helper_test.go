@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	pbc "git.gonit.codes/dealer/actshub/protocol/go/common/v1"
 	"github.com/hkjojo/go-toolkits/apptools"
 	"go.uber.org/zap/zapcore"
 
@@ -64,7 +63,7 @@ func TestHeaderTextLog(t *testing.T) {
 	}
 	// header time->|level-|>module->|source->|msg
 	zLog, err := NewZapLog(kfg, withTextHeader(func(enc zapcore.PrimitiveArrayEncoder, ent zapcore.Entry, fields map[string]zapcore.Field) {
-		enc.AppendString(ent.Time.UTC().Format(encoder.TextTimeFormat))
+		enc.AppendString(ent.Time.UTC().Format(encoder.TextTimeLayout))
 		enc.AppendString(encoder.SPLIT)
 		enc.AppendString(ent.Level.CapitalString())
 		enc.AppendString(encoder.SPLIT)
@@ -102,14 +101,20 @@ func TestHeaderTextLog(t *testing.T) {
 }
 
 func TestQueryLog(t *testing.T) {
-	//status := "INFO"
-	//msg := "1633261"
 	startTime := time.Now()
-	resp, err := encoder.QueryLogs(&pbc.ListLogReq{
-		From: "2025-05-27T00:00:00.000Z",
-		To:   "2025-05-27T23:00:00.000Z",
-		//Status: &status,
-		//Message: &msg,
+	now := time.Now().UTC()
+	dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	dayEnd := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 0, time.UTC)
+	from := dayStart.Format(encoder.TextTimeLayout)
+	to := dayEnd.Format(encoder.TextTimeLayout)
+	resp, err := encoder.QueryLogs(&encoder.ListLogReq{
+		From:       from,
+		To:         to,
+		Level:      nil,
+		Message:    nil,
+		Separator:  nil,
+		FieldNames: []string{"time", "level", "message"},
+		Filters:    nil,
 	}, "./history.log")
 	if err != nil {
 		t.Fatal(err)
