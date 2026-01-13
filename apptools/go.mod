@@ -8,6 +8,7 @@ require (
 	github.com/go-kratos/kratos/v2 v2.8.0
 	github.com/go-logr/stdr v1.2.2
 	github.com/google/gops v0.3.28
+	github.com/grafana/pyroscope-go v1.2.7
 	github.com/urfave/cli/v2 v2.27.4
 	go.opentelemetry.io/contrib/instrumentation/runtime v0.63.0
 	go.opentelemetry.io/otel v1.38.0
@@ -30,7 +31,9 @@ require (
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/google/pprof v0.0.0-20240711041743-f6c9dda6c6da // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/grafana/pyroscope-go/godeltaprof v0.1.9 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.2 // indirect
+	github.com/klauspost/compress v1.17.8 // indirect
 	github.com/richardartoul/molecule v1.0.1-0.20240531184615-7ca0df43c0b3 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
