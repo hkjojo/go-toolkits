@@ -12,6 +12,8 @@ func NewPyroscope() (*pyroscope.Profiler, error) {
 		return nil, nil
 	}
 
+	// These 2 lines are only required if you're using mutex or block profiling
+	// Read the explanation below for how to set these rates:
 	runtime.SetMutexProfileFraction(5)
 	runtime.SetBlockProfileRate(5)
 
@@ -19,7 +21,8 @@ func NewPyroscope() (*pyroscope.Profiler, error) {
 		ApplicationName: Name,
 		ServerAddress:   addr,
 		Logger:          pyroscope.StandardLogger,
-		Tags:            map[string]string{"env": Env},
+		// you can provide static tags via a map:
+		Tags: map[string]string{"env": Env},
 
 		ProfileTypes: []pyroscope.ProfileType{
 			// these profile types are enabled by default:
