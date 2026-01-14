@@ -134,7 +134,7 @@ func TestRound(t *testing.T) {
 	t.Log(Round(1.10268+0.0001, 5))
 }
 
-func TestMatchV3(t *testing.T) {
+func TestMatch(t *testing.T) {
 	type args struct {
 		value   string
 		pattern string
@@ -178,11 +178,12 @@ func TestMatchV3(t *testing.T) {
 		{"32", args{"", "*"}, false},
 		{"33", args{"", "test"}, false},
 		{"34", args{"test", ""}, false},
+		{"35", args{"Commodities\\Commodities\\XAUUSD", "Commodities\\Commodities\\*USD"}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := Match(tt.args.value, tt.args.pattern); got != tt.want {
-				t.Errorf("MatchV3() = %v, want %v", got, tt.want)
+				t.Errorf("Match() = %v, want %v", got, tt.want)
 			}
 		})
 	}
