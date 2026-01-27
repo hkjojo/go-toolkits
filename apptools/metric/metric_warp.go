@@ -22,20 +22,17 @@ const (
 	UnitCall          = "{call}" // 调用次数
 )
 
-// baseMetric 基础指标结构体，包含通用字段和方法
-type baseMetric struct {
-	labelNames []string
-	attrs      []attribute.KeyValue
-}
+type labels []attribute.KeyValue
+type labelNames []string
 
 // With 设置标签值
-func (b *baseMetric) With(labelValues []string) {
-	maxIndex := min(len(labelValues), len(b.labelNames))
+func (b labelNames) With(labelValues []string) labels {
+	maxIndex := min(len(labelValues), len(b))
 	attrs := make([]attribute.KeyValue, 0, maxIndex)
 	for i := range maxIndex {
-		attrs = append(attrs, attribute.String(b.labelNames[i], labelValues[i]))
+		attrs = append(attrs, attribute.String(b[i], labelValues[i]))
 	}
-	b.attrs = attrs
+	return attrs
 }
 
 // withPrefix 如果在全局配置中设置了 DefaultPrefix，则为指标名加上该前缀。
@@ -58,9 +55,7 @@ func NewInt64Counter(name string, labelNames []string, options ...metric.Int64Co
 	}
 	return &Int64Counter{
 		Int64Counter: counter,
-		baseMetric: baseMetric{
-			labelNames: labelNames,
-		},
+		labelNames:   labelNames,
 	}
 }
 
@@ -73,9 +68,7 @@ func NewInt64UpDownCounter(name string, labelNames []string, options ...metric.I
 
 	return &Int64UpDownCounter{
 		Int64UpDownCounter: counter,
-		baseMetric: baseMetric{
-			labelNames: labelNames,
-		},
+		labelNames:         labelNames,
 	}
 }
 
@@ -88,9 +81,7 @@ func NewInt64Histogram(name string, labelNames []string, options ...metric.Int64
 
 	return &Int64Histogram{
 		Int64Histogram: histogram,
-		baseMetric: baseMetric{
-			labelNames: labelNames,
-		},
+		labelNames:     labelNames,
 	}
 }
 
@@ -103,9 +94,7 @@ func NewInt64Gauge(name string, labelNames []string, options ...metric.Int64Gaug
 
 	return &Int64Gauge{
 		Int64Gauge: gauge,
-		baseMetric: baseMetric{
-			labelNames: labelNames,
-		},
+		labelNames: labelNames,
 	}
 }
 
@@ -118,9 +107,7 @@ func NewFloat64Counter(name string, labelNames []string, options ...metric.Float
 
 	return &Float64Counter{
 		Float64Counter: counter,
-		baseMetric: baseMetric{
-			labelNames: labelNames,
-		},
+		labelNames:     labelNames,
 	}
 }
 
@@ -133,9 +120,7 @@ func NewFloat64UpDownCounter(name string, labelNames []string, options ...metric
 
 	return &Float64UpDownCounter{
 		Float64UpDownCounter: counter,
-		baseMetric: baseMetric{
-			labelNames: labelNames,
-		},
+		labelNames:           labelNames,
 	}
 }
 
@@ -148,9 +133,7 @@ func NewFloat64Histogram(name string, labelNames []string, options ...metric.Flo
 
 	return &Float64Histogram{
 		Float64Histogram: histogram,
-		baseMetric: baseMetric{
-			labelNames: labelNames,
-		},
+		labelNames:       labelNames,
 	}
 }
 
@@ -163,9 +146,7 @@ func NewFloat64Gauge(name string, labelNames []string, options ...metric.Float64
 
 	return &Float64Gauge{
 		Float64Gauge: gauge,
-		baseMetric: baseMetric{
-			labelNames: labelNames,
-		},
+		labelNames:   labelNames,
 	}
 }
 
@@ -174,131 +155,163 @@ func NewFloat64Gauge(name string, labelNames []string, options ...metric.Float64
 // Int64Counter 带预置标签的 Int64Counter
 type Int64Counter struct {
 	metric.Int64Counter
-	baseMetric
+	labelNames labelNames
+	labels     labels
 }
 
 func (c *Int64Counter) Inc(opts ...metric.AddOption) {
-	c.Int64Counter.Add(context.Background(), 1, append(opts, metric.WithAttributes(c.attrs...))...)
+	c.Int64Counter.Add(context.Background(), 1, append(opts, metric.WithAttributes(c.labels...))...)
 }
 
 func (c *Int64Counter) Add(incr int64, opts ...metric.AddOption) {
-	c.Int64Counter.Add(context.Background(), incr, append(opts, metric.WithAttributes(c.attrs...))...)
+	c.Int64Counter.Add(context.Background(), incr, append(opts, metric.WithAttributes(c.labels...))...)
 }
 
 func (c *Int64Counter) With(labelValues ...string) *Int64Counter {
-	c.baseMetric.With(labelValues)
-	return c
+	return &Int64Counter{
+		c.Int64Counter,
+		c.labelNames,
+		c.labelNames.With(labelValues),
+	}
 }
 
 // Int64UpDownCounter 带预置标签的 Int64UpDownCounter
 type Int64UpDownCounter struct {
 	metric.Int64UpDownCounter
-	baseMetric
+	labelNames labelNames
+	labels     labels
 }
 
 func (c *Int64UpDownCounter) Inc(opts ...metric.AddOption) {
-	c.Int64UpDownCounter.Add(context.Background(), 1, append(opts, metric.WithAttributes(c.attrs...))...)
+	c.Int64UpDownCounter.Add(context.Background(), 1, append(opts, metric.WithAttributes(c.labels...))...)
 }
 
 func (c *Int64UpDownCounter) Dec(opts ...metric.AddOption) {
-	c.Int64UpDownCounter.Add(context.Background(), -1, append(opts, metric.WithAttributes(c.attrs...))...)
+	c.Int64UpDownCounter.Add(context.Background(), -1, append(opts, metric.WithAttributes(c.labels...))...)
 }
 
 func (c *Int64UpDownCounter) Add(incr int64, opts ...metric.AddOption) {
-	c.Int64UpDownCounter.Add(context.Background(), incr, append(opts, metric.WithAttributes(c.attrs...))...)
+	c.Int64UpDownCounter.Add(context.Background(), incr, append(opts, metric.WithAttributes(c.labels...))...)
 }
 
 func (c *Int64UpDownCounter) With(labelValues ...string) *Int64UpDownCounter {
-	c.baseMetric.With(labelValues)
-	return c
+	return &Int64UpDownCounter{
+		c.Int64UpDownCounter,
+		c.labelNames,
+		c.labelNames.With(labelValues),
+	}
 }
 
 // Int64Histogram 带预置标签的 Int64Histogram
 type Int64Histogram struct {
 	metric.Int64Histogram
-	baseMetric
+	labelNames labelNames
+	labels     labels
 }
 
 func (h *Int64Histogram) Record(incr int64, opts ...metric.RecordOption) {
-	h.Int64Histogram.Record(context.Background(), incr, append(opts, metric.WithAttributes(h.attrs...))...)
+	h.Int64Histogram.Record(context.Background(), incr, append(opts, metric.WithAttributes(h.labels...))...)
 }
 
 func (h *Int64Histogram) With(labelValues ...string) *Int64Histogram {
-	h.baseMetric.With(labelValues)
-	return h
+	return &Int64Histogram{
+		h.Int64Histogram,
+		h.labelNames,
+		h.labelNames.With(labelValues),
+	}
 }
 
 // Int64Gauge 带预置标签的 Int64Gauge
 type Int64Gauge struct {
 	metric.Int64Gauge
-	baseMetric
+	labelNames labelNames
+	labels     labels
 }
 
 func (g *Int64Gauge) Record(incr int64, opts ...metric.RecordOption) {
-	g.Int64Gauge.Record(context.Background(), incr, append(opts, metric.WithAttributes(g.attrs...))...)
+	g.Int64Gauge.Record(context.Background(), incr, append(opts, metric.WithAttributes(g.labels...))...)
 }
 
 func (g *Int64Gauge) With(labelValues ...string) *Int64Gauge {
-	g.baseMetric.With(labelValues)
-	return g
+	return &Int64Gauge{
+		g.Int64Gauge,
+		g.labelNames,
+		g.labelNames.With(labelValues),
+	}
 }
 
 // Float64Counter 带预置标签的 Float64Counter
 type Float64Counter struct {
 	metric.Float64Counter
-	baseMetric
+	labelNames labelNames
+	labels     labels
 }
 
 func (c *Float64Counter) Add(incr float64, opts ...metric.AddOption) {
-	c.Float64Counter.Add(context.Background(), incr, append(opts, metric.WithAttributes(c.attrs...))...)
+	c.Float64Counter.Add(context.Background(), incr, append(opts, metric.WithAttributes(c.labels...))...)
 }
 
 func (c *Float64Counter) With(labelValues ...string) *Float64Counter {
-	c.baseMetric.With(labelValues)
-	return c
+	return &Float64Counter{
+		c.Float64Counter,
+		c.labelNames,
+		c.labelNames.With(labelValues),
+	}
 }
 
 // Float64UpDownCounter 带预置标签的 Float64UpDownCounter
 type Float64UpDownCounter struct {
 	metric.Float64UpDownCounter
-	baseMetric
+	labelNames labelNames
+	labels     labels
 }
 
 func (c *Float64UpDownCounter) Add(incr float64, opts ...metric.AddOption) {
-	c.Float64UpDownCounter.Add(context.Background(), incr, append(opts, metric.WithAttributes(c.attrs...))...)
+	c.Float64UpDownCounter.Add(context.Background(), incr, append(opts, metric.WithAttributes(c.labels...))...)
 }
 
 func (c *Float64UpDownCounter) With(labelValues ...string) *Float64UpDownCounter {
-	c.baseMetric.With(labelValues)
-	return c
+	return &Float64UpDownCounter{
+		c.Float64UpDownCounter,
+		c.labelNames,
+		c.labelNames.With(labelValues),
+	}
 }
 
 // Float64Histogram 带预置标签的 Float64Histogram
 type Float64Histogram struct {
 	metric.Float64Histogram
-	baseMetric
+	labelNames labelNames
+	labels     labels
 }
 
 func (h *Float64Histogram) Record(incr float64, opts ...metric.RecordOption) {
-	h.Float64Histogram.Record(context.Background(), incr, append(opts, metric.WithAttributes(h.attrs...))...)
+	h.Float64Histogram.Record(context.Background(), incr, append(opts, metric.WithAttributes(h.labels...))...)
 }
 
 func (h *Float64Histogram) With(labelValues ...string) *Float64Histogram {
-	h.baseMetric.With(labelValues)
-	return h
+	return &Float64Histogram{
+		h.Float64Histogram,
+		h.labelNames,
+		h.labelNames.With(labelValues),
+	}
 }
 
 // Float64Gauge 带预置标签的 Float64Gauge
 type Float64Gauge struct {
 	metric.Float64Gauge
-	baseMetric
+	labelNames labelNames
+	labels     labels
 }
 
 func (g *Float64Gauge) Record(incr float64, opts ...metric.RecordOption) {
-	g.Float64Gauge.Record(context.Background(), incr, append(opts, metric.WithAttributes(g.attrs...))...)
+	g.Float64Gauge.Record(context.Background(), incr, append(opts, metric.WithAttributes(g.labels...))...)
 }
 
 func (g *Float64Gauge) With(labelValues ...string) *Float64Gauge {
-	g.baseMetric.With(labelValues)
-	return g
+	return &Float64Gauge{
+		g.Float64Gauge,
+		g.labelNames,
+		g.labelNames.With(labelValues),
+	}
 }
