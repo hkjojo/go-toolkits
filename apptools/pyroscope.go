@@ -1,10 +1,11 @@
 package apptools
 
 import (
-	"github.com/grafana/pyroscope-go"
 	"os"
 	"runtime"
 	"strings"
+
+	"github.com/grafana/pyroscope-go"
 )
 
 func NewPyroscope() (*pyroscope.Profiler, error) {
@@ -26,8 +27,12 @@ func NewPyroscope() (*pyroscope.Profiler, error) {
 	optional := parseOptionalProfiles(os.Getenv("PYROSCOPE_OPTIONAL_PROFILES"))
 	profileTypes = append(profileTypes, optional...)
 
+	appName := Name
+	if Env != "" {
+		appName = Env + "." + Name
+	}
 	start, err := pyroscope.Start(pyroscope.Config{
-		ApplicationName: Env + "-" + Name,
+		ApplicationName: appName,
 		ServerAddress:   addr,
 		Logger:          pyroscope.StandardLogger,
 		Tags:            map[string]string{"env": Env},
