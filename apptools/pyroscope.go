@@ -27,7 +27,7 @@ func NewPyroscope() (*pyroscope.Profiler, error) {
 	profileTypes = append(profileTypes, optional...)
 
 	start, err := pyroscope.Start(pyroscope.Config{
-		ApplicationName: Name,
+		ApplicationName: Env + "-" + Name,
 		ServerAddress:   addr,
 		Logger:          pyroscope.StandardLogger,
 		Tags:            map[string]string{"env": Env},
