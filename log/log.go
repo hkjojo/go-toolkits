@@ -31,9 +31,10 @@ type Config struct {
 	ForbidLevel   bool                  `json:"forbid_level"`
 	Caller        bool                  `json:"caller"`
 	Prefix        string                `json:"prefix"`
-	Kafka         *hook.KafkaConfig     `json:"kafka"`
-	WebHook       []*hook.WebHookConfig `json:"webhook"`
-	RotateDay     int                   `json:"rotate_day"`
+	Kafka         *hook.KafkaConfig       `json:"kafka"`
+	WebHook       []*hook.WebHookConfig   `json:"webhook"`
+	Redis         *hook.RedisStreamConfig `json:"redis"`
+	RotateDay     int                     `json:"rotate_day"`
 }
 
 func (c *Config) Metric() *Config {
@@ -234,6 +235,14 @@ func New(config *Config, opts ...Option) (*Logger, error) {
 
 	if config.Kafka != nil {
 		core, err := hook.NewKafkaCore(config.Kafka, config.Prefix, config.Fields, encoderConfig)
+		if err != nil {
+			return nil, err
+		}
+		cores = append(cores, core)
+	}
+
+	if config.Redis != nil {
+		core, err := hook.NewRedisStreamCore(config.Redis, config.Prefix, config.Fields, encoderConfig)
 		if err != nil {
 			return nil, err
 		}
