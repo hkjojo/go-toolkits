@@ -68,6 +68,9 @@ func NewMetricProvider(ops ...Option) (metric.MeterProvider, func(), error) {
 		// 关联资源信息，所有 metric 都会包含这些元数据
 		sdkmetric.WithResource(res),
 	}
+	for _, view := range globalConfig.Views {
+		opts = append(opts, sdkmetric.WithView(view))
+	}
 
 	mp := sdkmetric.NewMeterProvider(opts...)
 
@@ -148,6 +151,7 @@ type Config struct {
 	DefaultPrefix string        // 默认指标前缀
 	Debug         bool          // 调试模式
 	InitCallback  func()        // 初始化回调函数
+	Views         []sdkmetric.View
 }
 
 // Option 配置选项函数
@@ -200,4 +204,23 @@ func WithInitCallback(fn func()) Option {
 	return func(cfg *Config) {
 		cfg.InitCallback = fn
 	}
+}
+
+// WithViews configures OpenTelemetry SDK metric views.
+func WithViews(views ...sdkmetric.View) Option {
+	return func(cfg *Config) {
+		cfg.Views = append(cfg.Views, views...)
+	}
+}
+
+// RequestSecondsHistogramView returns explicit buckets for request duration histograms.
+func RequestSecondsHistogramView() sdkmetric.View {
+	return sdkmetric.NewView(
+		sdkmetric.Instrument{Name: "*_requests_seconds"},
+		sdkmetric.Stream{
+			Aggregation: sdkmetric.AggregationExplicitBucketHistogram{
+				Boundaries: []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
+			},
+		},
+	)
 }
