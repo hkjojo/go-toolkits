@@ -8,6 +8,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"reflect"
 	"strconv"
 	"sync/atomic"
 	"time"
@@ -70,10 +71,10 @@ type RedisStreamCore struct {
 	host   string
 
 	// Token bucket state — atomic to avoid taking a lock in writeData hot path.
-	bucketTokens   atomic.Int64
+	bucketTokens     atomic.Int64
 	bucketLastRefill atomic.Int64 // unix nanoseconds
-	bucketCap      int64
-	droppedTotal   atomic.Uint64
+	bucketCap        int64
+	droppedTotal     atomic.Uint64
 }
 
 // NewRedisStreamCore constructs a RedisStreamCore. The returned core is ready
@@ -194,7 +195,7 @@ func (c *RedisStreamCore) writeData(data *CoreData) {
 	// unmarshaled JSON numbers, not stringified ints.
 	payloadMap := make(map[string]any, len(remaining))
 	for _, f := range remaining {
-		payloadMap[f.Key] = c.getField(f)
+		payloadMap[f.Key] = c.getPayloadField(f)
 	}
 	payloadJSON, err := json.Marshal(payloadMap)
 	if err != nil {
@@ -235,6 +236,128 @@ func (c *RedisStreamCore) writeData(data *CoreData) {
 		fmt.Fprintf(os.Stderr,
 			"[log] redis stream xadd err: %v\n", err)
 	}
+}
+
+func (c *RedisStreamCore) getPayloadField(field zapcore.Field) any {
+	value := c.getField(field)
+	switch field.Type {
+	case zapcore.ErrorType:
+		if err, ok := value.(error); ok {
+			if err == nil {
+				return nil
+			}
+			return err.Error()
+		}
+	case zapcore.StringerType:
+		if stringer, ok := value.(fmt.Stringer); ok {
+			return safeString(stringer)
+		}
+	}
+	return safeJSONValue(value)
+}
+
+func safeJSONValue(value any) any {
+	if value == nil {
+		return nil
+	}
+	if err, ok := value.(error); ok {
+		return err.Error()
+	}
+	if _, err := json.Marshal(value); err == nil {
+		return value
+	}
+	return sanitizeReflectValue(reflect.ValueOf(value), make(map[uintptr]struct{}), 0)
+}
+
+func sanitizeReflectValue(value reflect.Value, seen map[uintptr]struct{}, depth int) any {
+	if !value.IsValid() {
+		return nil
+	}
+	if depth > 8 {
+		if value.CanInterface() {
+			return fmt.Sprint(value.Interface())
+		}
+		return fmt.Sprint(value)
+	}
+	if value.CanInterface() {
+		if err, ok := value.Interface().(error); ok {
+			return err.Error()
+		}
+	}
+
+	switch value.Kind() {
+	case reflect.Interface:
+		if value.IsNil() {
+			return nil
+		}
+		return sanitizeReflectValue(value.Elem(), seen, depth+1)
+	case reflect.Pointer:
+		if value.IsNil() {
+			return nil
+		}
+		ptr := value.Pointer()
+		if _, ok := seen[ptr]; ok {
+			return "<cycle>"
+		}
+		seen[ptr] = struct{}{}
+		return sanitizeReflectValue(value.Elem(), seen, depth+1)
+	case reflect.Map:
+		if value.IsNil() {
+			return nil
+		}
+		out := make(map[string]any, value.Len())
+		iter := value.MapRange()
+		for iter.Next() {
+			out[fmt.Sprint(iter.Key().Interface())] = sanitizeReflectValue(iter.Value(), seen, depth+1)
+		}
+		return out
+	case reflect.Slice, reflect.Array:
+		out := make([]any, value.Len())
+		for i := 0; i < value.Len(); i++ {
+			out[i] = sanitizeReflectValue(value.Index(i), seen, depth+1)
+		}
+		return out
+	case reflect.Struct:
+		t := value.Type()
+		out := make(map[string]any, value.NumField())
+		for i := 0; i < value.NumField(); i++ {
+			field := t.Field(i)
+			if field.PkgPath != "" {
+				continue
+			}
+			out[field.Name] = sanitizeReflectValue(value.Field(i), seen, depth+1)
+		}
+		return out
+	case reflect.Func:
+		if value.IsNil() {
+			return nil
+		}
+		return "<func>"
+	case reflect.Chan:
+		if value.IsNil() {
+			return nil
+		}
+		return "<chan>"
+	case reflect.Complex64, reflect.Complex128, reflect.UnsafePointer:
+		return fmt.Sprint(value.Interface())
+	default:
+		if value.CanInterface() {
+			return value.Interface()
+		}
+		return fmt.Sprint(value)
+	}
+}
+
+func safeString(stringer fmt.Stringer) (out string) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			out = fmt.Sprint(rec)
+		}
+	}()
+	if stringer == nil {
+		return ""
+	}
+	return stringer.String()
 }
 
 // allow consumes one token from the QPS bucket. Returns true if granted,

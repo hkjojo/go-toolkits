@@ -29,13 +29,13 @@ func newTestRedisStreamCore(t *testing.T, cfg *RedisStreamConfig, fields map[str
 	cfg.Addr = mr.Addr()
 
 	encConfig := zapcore.EncoderConfig{
-		MessageKey:    "msg",
-		LevelKey:      "level",
-		TimeKey:       "time",
-		EncodeLevel:   zapcore.LowercaseLevelEncoder,
-		EncodeTime:    zapcore.RFC3339NanoTimeEncoder,
-		LineEnding:    zapcore.DefaultLineEnding,
-		EncodeCaller:  zapcore.ShortCallerEncoder,
+		MessageKey:   "msg",
+		LevelKey:     "level",
+		TimeKey:      "time",
+		EncodeLevel:  zapcore.LowercaseLevelEncoder,
+		EncodeTime:   zapcore.RFC3339NanoTimeEncoder,
+		LineEnding:   zapcore.DefaultLineEnding,
+		EncodeCaller: zapcore.ShortCallerEncoder,
 	}
 	core, err := NewRedisStreamCore(cfg, "", fields, encConfig)
 	if err != nil {
@@ -186,6 +186,92 @@ func TestRedisStreamCore_PayloadTruncation(t *testing.T) {
 	entries := readStreamEntries(t, mr, "system_logs")
 	if entries[0]["payload"] != `{"_truncated":true}` {
 		t.Errorf("payload=%q, want {\"_truncated\":true}", entries[0]["payload"])
+	}
+}
+
+type jsonBadError struct {
+	Fn  func()
+	msg string
+}
+
+func (e jsonBadError) Error() string {
+	if e.msg == "" {
+		return "json bad error"
+	}
+	return e.msg
+}
+
+var _ error = jsonBadError{}
+
+func TestRedisStreamCore_SanitizesUnmarshalablePayloadFields(t *testing.T) {
+	core, mr := newTestRedisStreamCore(t, &RedisStreamConfig{
+		StreamKey: "system_logs",
+		QPS:       0,
+	}, nil)
+
+	core.writeData(&CoreData{
+		entry: zapcore.Entry{
+			Time:    time.Now(),
+			Level:   zapcore.ErrorLevel,
+			Message: "sweeper_failed",
+		},
+		fields: []zapcore.Field{
+			zap.Any("err", jsonBadError{Fn: func() {}, msg: "db exploded"}),
+			zap.String("runner", "market_override"),
+		},
+	})
+
+	waitForStreamLen(t, mr, "system_logs", 1)
+	entries := readStreamEntries(t, mr, "system_logs")
+
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(entries[0]["payload"]), &payload); err != nil {
+		t.Fatalf("payload unmarshal: %v\npayload=%s", err, entries[0]["payload"])
+	}
+	if _, ok := payload["_encode_error"]; ok {
+		t.Fatalf("payload should not be replaced by _encode_error: %v", payload)
+	}
+	if payload["err"] != "db exploded" {
+		t.Fatalf("payload.err=%v, want db exploded", payload["err"])
+	}
+	if payload["runner"] != "market_override" {
+		t.Fatalf("payload.runner=%v, want market_override", payload["runner"])
+	}
+}
+
+func TestRedisStreamCore_SanitizesUnsupportedPayloadValuesIndividually(t *testing.T) {
+	core, mr := newTestRedisStreamCore(t, &RedisStreamConfig{
+		StreamKey: "system_logs",
+		QPS:       0,
+	}, nil)
+
+	core.writeData(&CoreData{
+		entry: zapcore.Entry{
+			Time:    time.Now(),
+			Level:   zapcore.ErrorLevel,
+			Message: "panic_recovered",
+		},
+		fields: []zapcore.Field{
+			zap.Any("panic", func() {}),
+			zap.String("runner", "activation"),
+		},
+	})
+
+	waitForStreamLen(t, mr, "system_logs", 1)
+	entries := readStreamEntries(t, mr, "system_logs")
+
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(entries[0]["payload"]), &payload); err != nil {
+		t.Fatalf("payload unmarshal: %v\npayload=%s", err, entries[0]["payload"])
+	}
+	if _, ok := payload["_encode_error"]; ok {
+		t.Fatalf("payload should not be replaced by _encode_error: %v", payload)
+	}
+	if payload["panic"] != "<func>" {
+		t.Fatalf("payload.panic=%v, want <func>", payload["panic"])
+	}
+	if payload["runner"] != "activation" {
+		t.Fatalf("payload.runner=%v, want activation", payload["runner"])
 	}
 }
 
