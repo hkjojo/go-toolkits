@@ -187,9 +187,6 @@ func (c *RedisStreamCore) writeData(data *CoreData) {
 			source = c.getFieldString(f)
 			continue
 		}
-		if f.Key == "service" {
-			continue
-		}
 		remaining = append(remaining, f)
 	}
 

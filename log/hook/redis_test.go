@@ -276,7 +276,7 @@ func TestRedisStreamCore_SanitizesUnsupportedPayloadValuesIndividually(t *testin
 	}
 }
 
-func TestRedisStreamCore_WriteHoistsMetadataAndStringifiesError(t *testing.T) {
+func TestRedisStreamCore_WriteStringifiesError(t *testing.T) {
 	core, mr := newTestRedisStreamCore(t, &RedisStreamConfig{
 		StreamKey: "system_logs",
 		QPS:       0,
@@ -311,9 +311,6 @@ func TestRedisStreamCore_WriteHoistsMetadataAndStringifiesError(t *testing.T) {
 	var payload map[string]any
 	if err := json.Unmarshal([]byte(got["payload"]), &payload); err != nil {
 		t.Fatalf("payload unmarshal: %v\npayload=%s", err, got["payload"])
-	}
-	if _, ok := payload["service"]; ok {
-		t.Fatalf("service should be hoisted out of payload: %v", payload)
 	}
 	if _, ok := payload["source"]; ok {
 		t.Fatalf("source should be hoisted out of payload: %v", payload)
