@@ -3,6 +3,7 @@ package hook
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strconv"
 	"strings"
 	"testing"
@@ -272,6 +273,53 @@ func TestRedisStreamCore_SanitizesUnsupportedPayloadValuesIndividually(t *testin
 	}
 	if payload["runner"] != "activation" {
 		t.Fatalf("payload.runner=%v, want activation", payload["runner"])
+	}
+}
+
+func TestRedisStreamCore_WriteHoistsMetadataAndStringifiesError(t *testing.T) {
+	core, mr := newTestRedisStreamCore(t, &RedisStreamConfig{
+		StreamKey: "system_logs",
+		QPS:       0,
+	}, map[string]string{
+		"service": "api-server",
+	})
+
+	if err := core.Write(zapcore.Entry{
+		Time:    time.Now(),
+		Level:   zapcore.WarnLevel,
+		Message: "outbox poller XADD failed",
+	}, []zapcore.Field{
+		zap.String("source", "background"),
+		zap.Int64("event_id", 9951),
+		zap.String("event_type", "config.updated"),
+		zap.String("entity_type", "client"),
+		zap.Any("err", errors.New("redis_stream: xadd config_changes: WRONGTYPE wrong kind")),
+	}); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	waitForStreamLen(t, mr, "system_logs", 1)
+	entries := readStreamEntries(t, mr, "system_logs")
+	got := entries[0]
+	if got["service"] != "api-server" {
+		t.Fatalf("service=%q, want api-server", got["service"])
+	}
+	if got["source"] != "background" {
+		t.Fatalf("source=%q, want background", got["source"])
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(got["payload"]), &payload); err != nil {
+		t.Fatalf("payload unmarshal: %v\npayload=%s", err, got["payload"])
+	}
+	if _, ok := payload["service"]; ok {
+		t.Fatalf("service should be hoisted out of payload: %v", payload)
+	}
+	if _, ok := payload["source"]; ok {
+		t.Fatalf("source should be hoisted out of payload: %v", payload)
+	}
+	if payload["err"] != "redis_stream: xadd config_changes: WRONGTYPE wrong kind" {
+		t.Fatalf("payload.err=%v", payload["err"])
 	}
 }
 
