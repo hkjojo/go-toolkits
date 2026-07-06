@@ -315,3 +315,46 @@ func (g *Float64Gauge) With(labelValues ...string) *Float64Gauge {
 		g.labelNames.With(labelValues),
 	}
 }
+
+// Observable(异步)instrument：回调型，SDK 每导出周期调回调采集当前值，
+// 适合“值由业务持有、周期读”的场景（累计原子计数 / 派生 gauge / 动态 label）。
+// 与同步构造器共享 withPrefix + otel.Meter(apptools.Name)。
+//
+// RegisterCallback 传入的 instrument 必须由同一个 meter 创建，因此这些构造器与
+// RegisterCallback 都绑定在 apptools.Name 这个 scope——业务侧不要另用别的 meter
+// scope 注册回调，否则 instrument 不属于该 meter，观测会被丢弃。
+
+// NewInt64ObservableCounter 异步累计计数器。回调里 Observe 的是**累计总值**，
+// SDK 自行换算增量导出，勿手动做 delta。
+func NewInt64ObservableCounter(name string, options ...metric.Int64ObservableCounterOption) metric.Int64ObservableCounter {
+	c, err := otel.Meter(apptools.Name).Int64ObservableCounter(withPrefix(name), options...)
+	if err != nil {
+		panic(err)
+	}
+	return c
+}
+
+// NewInt64ObservableGauge 异步 gauge（整型瞬时值）。
+func NewInt64ObservableGauge(name string, options ...metric.Int64ObservableGaugeOption) metric.Int64ObservableGauge {
+	g, err := otel.Meter(apptools.Name).Int64ObservableGauge(withPrefix(name), options...)
+	if err != nil {
+		panic(err)
+	}
+	return g
+}
+
+// NewFloat64ObservableGauge 异步 gauge（浮点瞬时值，如秒级时长）。
+func NewFloat64ObservableGauge(name string, options ...metric.Float64ObservableGaugeOption) metric.Float64ObservableGauge {
+	g, err := otel.Meter(apptools.Name).Float64ObservableGauge(withPrefix(name), options...)
+	if err != nil {
+		panic(err)
+	}
+	return g
+}
+
+// RegisterCallback 注册一个覆盖多个 observable instrument 的回调。回调需在有限时间内
+// 完成、可重入、并发安全，且避免在回调内加锁（见 OTel 文档）。instrument 必须来自本包
+// 的 NewXxxObservable* 构造器（同 meter scope）。
+func RegisterCallback(f metric.Callback, instruments ...metric.Observable) (metric.Registration, error) {
+	return otel.Meter(apptools.Name).RegisterCallback(f, instruments...)
+}
