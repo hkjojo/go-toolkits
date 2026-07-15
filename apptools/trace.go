@@ -2,6 +2,7 @@ package apptools
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -11,6 +12,7 @@ import (
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 	"go.opentelemetry.io/otel/trace"
+	tracenoop "go.opentelemetry.io/otel/trace/noop"
 )
 
 /*
@@ -24,12 +26,39 @@ OTEL_EXPORTER_OTLP_TRACES_CERTIFICATE
 OTEL_EXPORTER_OTLP_TRACES_CLIENT_CERTIFICATE
 OTEL_EXPORTER_OTLP_TRACES_COMPRESSION
 OTEL_EXPORTER_OTLP_TRACES_CLIENT_KEY
+
+行为说明：endpoint 解析优先级为显式 Option（WithEndpoint）> 信号专用 env
+（OTEL_EXPORTER_OTLP_TRACES_ENDPOINT）> 通用 env（OTEL_EXPORTER_OTLP_ENDPOINT）。当三者都
+为空时，NewTracerProvider 返回一个 no-op TracerProvider —— 不创建 exporter/batcher，不设置
+采样、传播器或全局 TracerProvider，零初始化、零上报、零连接。这是相对旧版本（旧版本会无条件
+创建 exporter 并回退到默认 localhost:4317）的行为变更。
 */
-func NewTracerProvider() (trace.TracerProvider, func(), error) {
-	ctx := context.Background()
-	traceExp, err := otlptracegrpc.New(ctx,
-		otlptracegrpc.WithInsecure(),
+func NewTracerProvider(ops ...TraceOption) (trace.TracerProvider, func(), error) {
+	opts := newTraceOptions(ops...)
+
+	// 解析 endpoint：显式 Option > env(信号专用 OTEL_EXPORTER_OTLP_TRACES_ENDPOINT) >
+	// env(通用 OTEL_EXPORTER_OTLP_ENDPOINT)。都为空时视为未配置，与 SDK envconfig 的优先级一致。
+	endpoint := ResolveEndpoint(opts.endpoint,
+		"OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+		"OTEL_EXPORTER_OTLP_ENDPOINT",
 	)
+	if endpoint == "" {
+		// 真 no-op：完全跳过 exporter/batcher/采样/传播器/全局注册，零初始化、零上报、零连接。
+		return tracenoop.NewTracerProvider(), func() {}, nil
+	}
+
+	ctx := context.Background()
+
+	grpcOpts := []otlptracegrpc.Option{
+		otlptracegrpc.WithInsecure(),
+	}
+	// 仅当来自 Option 时才显式设置 endpoint（host:port）；来自 env 时交由 SDK
+	// 自行解析 OTLP endpoint 环境变量（可能是完整 URL），保持向后兼容。
+	if opt := strings.TrimSpace(opts.endpoint); opt != "" {
+		grpcOpts = append(grpcOpts, otlptracegrpc.WithEndpoint(opt))
+	}
+
+	traceExp, err := otlptracegrpc.New(ctx, grpcOpts...)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-logr/stdr"
@@ -13,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/metric"
+	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
@@ -28,16 +30,37 @@ var (
 	}
 )
 
+// NewMetricProvider 创建 MeterProvider。endpoint 解析优先级为显式 Option（WithEndpoint）>
+// 信号专用 env（OTEL_EXPORTER_OTLP_METRICS_ENDPOINT）> 通用 env（OTEL_EXPORTER_OTLP_ENDPOINT）。
+// 当三者都为空时，返回一个 no-op MeterProvider —— 不创建 exporter/PeriodicReader，不设置全局
+// MeterProvider，零初始化、零上报、零连接（相对旧版本无条件创建 exporter 的行为变更）。
+//
+// 注意：本函数通过包级单例 globalConfig 存放配置（Endpoint/Views/DefaultPrefix 等），配置会跨调用
+// 保留。它被设计为每个进程调用一次；重复以不同 Option 调用会与既有状态叠加。
 func NewMetricProvider(ops ...Option) (metric.MeterProvider, func(), error) {
 	initConfig(ops...)
+
+	// 解析 endpoint：显式 Option > env(信号专用 OTEL_EXPORTER_OTLP_METRICS_ENDPOINT) >
+	// env(通用 OTEL_EXPORTER_OTLP_ENDPOINT)。都为空时视为未配置，与 SDK envconfig 的优先级一致。
+	endpoint := apptools.ResolveEndpoint(globalConfig.Endpoint,
+		"OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
+		"OTEL_EXPORTER_OTLP_ENDPOINT",
+	)
+	if endpoint == "" {
+		// 真 no-op：完全跳过 exporter/PeriodicReader/全局注册，零初始化、零上报、零连接。
+		return metricnoop.NewMeterProvider(), func() {}, nil
+	}
+
 	ctx := context.Background()
 
 	options := []otlpmetricgrpc.Option{
 		otlpmetricgrpc.WithInsecure(),
 	}
 
-	if globalConfig.Endpoint != "" {
-		options = append(options, otlpmetricgrpc.WithEndpoint(globalConfig.Endpoint))
+	// 仅当来自 Option 时才显式设置 endpoint（host:port）；来自 env 时交由 SDK
+	// 自行解析 OTEL_EXPORTER_OTLP_METRICS_ENDPOINT，保持向后兼容。
+	if opt := strings.TrimSpace(globalConfig.Endpoint); opt != "" {
+		options = append(options, otlpmetricgrpc.WithEndpoint(opt))
 	}
 
 	exporter, err := otlpmetricgrpc.New(ctx,

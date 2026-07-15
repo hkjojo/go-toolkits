@@ -8,8 +8,12 @@ import (
 	"github.com/grafana/pyroscope-go"
 )
 
-func NewPyroscope() (*pyroscope.Profiler, error) {
-	addr := os.Getenv("PYROSCOPE_ADHOC_SERVER_ADDRESS")
+func NewPyroscope(ops ...PyroscopeOption) (*pyroscope.Profiler, error) {
+	opts := newPyroscopeOptions(ops...)
+
+	// address 优先级：显式 Option > env(PYROSCOPE_ADHOC_SERVER_ADDRESS)。
+	// 两者都为空时保持原有 no-op：不启动 profiler、零上报、零连接。
+	addr := ResolveEndpoint(opts.address, "PYROSCOPE_ADHOC_SERVER_ADDRESS")
 	if addr == "" {
 		return nil, nil
 	}
