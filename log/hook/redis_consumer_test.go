@@ -233,3 +233,192 @@ func TestRedisStreamConsumer_BadEntryDoesNotBlockBatch(t *testing.T) {
 	}
 	mu.Unlock()
 }
+
+// TestRedisStreamConsumer_AckByHandler_PELUntilAck: under AckByHandler the
+// consumer must not XACK on saver success — entries stay pending until the
+// handler calls Ack with their stream ids, after which the PEL is empty.
+func TestRedisStreamConsumer_AckByHandler_PELUntilAck(t *testing.T) {
+	mr, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("miniredis: %v", err)
+	}
+	t.Cleanup(mr.Close)
+
+	const streamKey, group = "system_logs", "system-log-store"
+	ctx := context.Background()
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
+
+	var (
+		mu  sync.Mutex
+		ids []string
+		got = make(chan struct{}, 8)
+	)
+	consumer, err := NewRedisStreamConsumer(&RedisStreamConfig{
+		Addr:      mr.Addr(),
+		StreamKey: streamKey,
+	}, ConsumerOpts{
+		GroupName:   group,
+		ConsumerID:  "logstore-1",
+		BatchSize:   10,
+		FlushMs:     50,
+		MinIdleTime: time.Hour, // healthy in-flight entries must not be reclaimed mid-test
+		AckMode:     AckByHandler,
+	}, func(_ context.Context, batch []Entry) error {
+		mu.Lock()
+		for _, e := range batch {
+			ids = append(ids, e.StreamID)
+		}
+		mu.Unlock()
+		got <- struct{}{}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("new consumer: %v", err)
+	}
+	if err := consumer.Start(ctx); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	t.Cleanup(func() { _ = consumer.Stop() })
+
+	for i := 0; i < 2; i++ {
+		if _, err := rdb.XAdd(ctx, &redis.XAddArgs{
+			Stream: streamKey,
+			Values: map[string]any{
+				"ts":      strconv.FormatInt(time.Now().UnixMilli(), 10),
+				"level":   "info",
+				"service": "api-server",
+				"msg":     "buffered",
+				"payload": `{}`,
+				"host":    "h1",
+			},
+		}).Result(); err != nil {
+			t.Fatalf("xadd: %v", err)
+		}
+	}
+
+	// Wait until both entries reached the saver (one or two batches).
+	deadline := time.After(2 * time.Second)
+	for {
+		mu.Lock()
+		n := len(ids)
+		mu.Unlock()
+		if n == 2 {
+			break
+		}
+		select {
+		case <-got:
+		case <-deadline:
+			t.Fatalf("saver saw %d entries within 2s, want 2", n)
+		}
+	}
+
+	pending := func() int64 {
+		p, err := rdb.XPending(ctx, streamKey, group).Result()
+		if err != nil {
+			t.Fatalf("xpending: %v", err)
+		}
+		return p.Count
+	}
+	if n := pending(); n != 2 {
+		t.Fatalf("saver success must NOT ack under AckByHandler: pending=%d, want 2", n)
+	}
+
+	// Ack the first only — the second stays pending (per-id granularity).
+	mu.Lock()
+	first, second := ids[0], ids[1]
+	mu.Unlock()
+	if err := consumer.Ack(ctx, first); err != nil {
+		t.Fatalf("ack: %v", err)
+	}
+	if n := pending(); n != 1 {
+		t.Fatalf("after acking 1 of 2: pending=%d, want 1", n)
+	}
+	if err := consumer.Ack(ctx); err != nil {
+		t.Fatalf("empty ack must be a no-op, got %v", err)
+	}
+	if err := consumer.Ack(ctx, second, first); err != nil { // re-acking an acked id is harmless
+		t.Fatalf("ack: %v", err)
+	}
+	if n := pending(); n != 0 {
+		t.Fatalf("after acking all: pending=%d, want 0", n)
+	}
+}
+
+// TestRedisStreamConsumer_AckBySaverDefaultStillAcks pins the default: with
+// AckMode unset, saver success acks the batch (existing callers unchanged).
+func TestRedisStreamConsumer_AckBySaverDefaultStillAcks(t *testing.T) {
+	mr, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("miniredis: %v", err)
+	}
+	t.Cleanup(mr.Close)
+
+	const streamKey, group = "system_logs", "system-log-persister"
+	ctx := context.Background()
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
+
+	got := make(chan struct{}, 8)
+	consumer, err := NewRedisStreamConsumer(&RedisStreamConfig{
+		Addr:      mr.Addr(),
+		StreamKey: streamKey,
+	}, ConsumerOpts{
+		GroupName:  group,
+		ConsumerID: "apiserver-1",
+		BatchSize:  10,
+		FlushMs:    50,
+	}, func(_ context.Context, batch []Entry) error {
+		got <- struct{}{}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("new consumer: %v", err)
+	}
+	if err := consumer.Start(ctx); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	t.Cleanup(func() { _ = consumer.Stop() })
+
+	if _, err := rdb.XAdd(ctx, &redis.XAddArgs{
+		Stream: streamKey,
+		Values: map[string]any{
+			"ts":      strconv.FormatInt(time.Now().UnixMilli(), 10),
+			"level":   "info",
+			"msg":     "direct",
+			"payload": `{}`,
+		},
+	}).Result(); err != nil {
+		t.Fatalf("xadd: %v", err)
+	}
+	select {
+	case <-got:
+	case <-time.After(2 * time.Second):
+		t.Fatal("saver did not receive entry within 2s")
+	}
+	// XACK happens right after the saver returns; poll briefly for it.
+	deadline := time.After(2 * time.Second)
+	for {
+		p, err := rdb.XPending(ctx, streamKey, group).Result()
+		if err != nil {
+			t.Fatalf("xpending: %v", err)
+		}
+		if p.Count == 0 {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("default mode must ack on saver success, pending=%d", p.Count)
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+}
+
+func TestNewRedisStreamConsumer_RejectsUnknownAckMode(t *testing.T) {
+	_, err := NewRedisStreamConsumer(&RedisStreamConfig{Addr: "localhost:6379", StreamKey: "s"}, ConsumerOpts{
+		GroupName: "g", ConsumerID: "c", AckMode: AckMode(42),
+	}, func(context.Context, []Entry) error { return nil })
+	if err == nil {
+		t.Fatal("unknown ack mode must be rejected at construction")
+	}
+}

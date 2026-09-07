@@ -37,7 +37,32 @@ type Entry struct {
 // bulk-INSERT into a PG table). Errors are logged and the batch is NOT
 // XACK'd, so the entries remain in PEL and will be reclaimed by the next
 // XAUTOCLAIM cycle.
+//
+// Under AckBySaver (default) a nil return XACKs the whole batch immediately.
+// Under AckByHandler a nil return only means "accepted into the handler's
+// custody" — the handler must call RedisStreamConsumer.Ack with the
+// Entry.StreamID values once they are durable.
 type SaverFunc func(ctx context.Context, batch []Entry) error
+
+// AckMode selects who acknowledges entries after the saver accepts them.
+type AckMode int
+
+const (
+	// AckBySaver (default): the consumer XACKs a batch as soon as the saver
+	// returns nil. Right when the saver itself is the durable sink (a
+	// synchronous PG INSERT).
+	AckBySaver AckMode = iota
+
+	// AckByHandler: the consumer never XACKs on its own; the handler calls
+	// Ack(ctx, ids...) once the entries are durable. Right when the saver
+	// only buffers (e.g. batching into a file flushed every N seconds) — the
+	// Redis PEL then acts as the write-ahead log: entries accepted but not
+	// yet durable stay pending and are redelivered by XAUTOCLAIM after
+	// MinIdleTime if the process dies before acking. Set MinIdleTime
+	// comfortably above the handler's flush cadence, otherwise healthy
+	// in-flight entries get reclaimed and delivered twice.
+	AckByHandler
+)
 
 // ConsumerOpts configures runtime behavior of RedisStreamConsumer. Static
 // fields (StreamKey, redis connection) are pulled from the producer-side
@@ -71,11 +96,15 @@ type ConsumerOpts struct {
 	// ConsumerCleanupInterval controls how often the offline-consumer
 	// cleanup goroutine runs. Default 5min.
 	ConsumerCleanupInterval time.Duration
+
+	// AckMode decides who XACKs accepted entries. Default AckBySaver.
+	AckMode AckMode
 }
 
 // RedisStreamConsumer reads log entries written by RedisStreamCore from a
 // Redis stream, parses them into typed Entry, calls a user-provided
-// SaverFunc for each batch, and XACKs on success.
+// SaverFunc for each batch, and XACKs on success (AckBySaver) or leaves the
+// XACK to the handler (AckByHandler, see Ack).
 //
 // Three goroutines run concurrently after Start:
 //  1. main loop — XReadGroup + saver + XACK
@@ -115,6 +144,9 @@ func NewRedisStreamConsumer(streamCfg *RedisStreamConfig, opts ConsumerOpts, sav
 	}
 	if saver == nil {
 		return nil, errors.New("redis stream consumer: saver is required")
+	}
+	if opts.AckMode != AckBySaver && opts.AckMode != AckByHandler {
+		return nil, fmt.Errorf("redis stream consumer: unknown ack mode %d", opts.AckMode)
 	}
 
 	applyRedisStreamDefaults(streamCfg)
@@ -202,6 +234,23 @@ func (c *RedisStreamConsumer) Stop() error {
 	return nil
 }
 
+// Ack acknowledges entries by stream id on behalf of the handler. It is the
+// only way entries get XACK'd under AckByHandler; under AckBySaver it is a
+// redundant no-harm call (already-acked ids are ignored by Redis).
+//
+// Call it only after the entries are durable in the handler's sink. An
+// error means the XACK did not happen: the ids stay in the PEL and will be
+// redelivered via XAUTOCLAIM, so the handler must tolerate duplicates
+// (at-least-once) — it must NOT retry blindly in a loop. Ack is safe to
+// call concurrently with the consumer loops and after Stop (it then fails
+// with the closed-client error).
+func (c *RedisStreamConsumer) Ack(ctx context.Context, ids ...string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	return c.client.XAck(ctx, c.streamCfg.StreamKey, c.opts.GroupName, ids...).Err()
+}
+
 func (c *RedisStreamConsumer) ensureGroup(ctx context.Context) error {
 	err := c.client.XGroupCreateMkStream(ctx, c.streamCfg.StreamKey, c.opts.GroupName, "$").Err()
 	if err == nil {
@@ -278,6 +327,11 @@ func (c *RedisStreamConsumer) handleStreams(ctx context.Context, streams []redis
 				"[log] redis stream consumer saver err: %v (batch=%d, leaving in PEL)\n",
 				err, len(batch))
 			continue // leave in PEL for autoclaim
+		}
+		if c.opts.AckMode == AckByHandler {
+			// Handler owns durability; it acks via Ack() once the entries
+			// are persisted. Until then the PEL is the WAL.
+			continue
 		}
 		if err := c.client.XAck(ctx, c.streamCfg.StreamKey, c.opts.GroupName, ids...).Err(); err != nil {
 			// XAck failure is non-fatal — entries will be redelivered via
