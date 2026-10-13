@@ -50,6 +50,21 @@ cfg := &tlog.Config{
 logger, _ := tlog.New(cfg)
 ```
 
+`Mode` selects the server topology: `""` / `"single"` (default) or `"cluster"`.
+Cluster mode builds a cluster client even from a single seed (e.g. an ElastiCache
+configuration endpoint) and accepts a comma-separated seed list in `Addr`; `DB` must
+be 0. A single-node client pointed at a cluster gets `MOVED` whenever the stream's
+slot lives on another node, so set the mode explicitly. The consumer shares the
+same `RedisStreamConfig`, so producer and consumer always use the same topology.
+
+```go
+Redis: &hook.RedisStreamConfig{
+    Mode:      "cluster",
+    Addr:      "my-cluster.xxxxxx.clustercfg.apse1.cache.amazonaws.com:6379",
+    StreamKey: "system_logs",
+},
+```
+
 Each XADD writes the following fields:
 
 | Field     | Source                                             |
@@ -84,6 +99,7 @@ The consumer runs three internal goroutines:
 
 Failure modes:
 
+- invalid topology config (unknown `Mode`, node list without `Mode: cluster`, non-zero `DB` in cluster mode) → constructor returns an error
 - redis ping fail at startup → stderr warning, core continues, sink degrades silently
 - saver returns error → batch left in PEL, reclaimed on next autoclaim cycle
 - producer storm → token-bucket throttle (`QPS`) drops over-budget entries; observable via `(*RedisStreamCore).DroppedTotal()`

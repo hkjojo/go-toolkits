@@ -2,7 +2,6 @@ package hook
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -152,13 +151,9 @@ func NewRedisStreamConsumer(streamCfg *RedisStreamConfig, opts ConsumerOpts, sav
 	applyRedisStreamDefaults(streamCfg)
 	applyConsumerOptDefaults(&opts)
 
-	clientOpts := &redis.UniversalOptions{
-		Addrs:    []string{streamCfg.Addr},
-		Password: streamCfg.Password,
-		DB:       streamCfg.DB,
-	}
-	if streamCfg.UseTLS {
-		clientOpts.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	clientOpts, err := redisStreamClientOptions(streamCfg)
+	if err != nil {
+		return nil, fmt.Errorf("redis stream consumer: %w", err)
 	}
 
 	c := &RedisStreamConsumer{

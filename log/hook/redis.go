@@ -10,6 +10,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -35,6 +36,14 @@ type RedisStreamConfig struct {
 	CoreConfig `json:",inline"`
 
 	// Redis connection — hkjojo internally builds a redis.UniversalClient from these.
+	//
+	// Mode selects the server topology: "" or "single" (default, unchanged behavior) or
+	// "cluster". In cluster mode Addr may be a single seed (e.g. an ElastiCache
+	// configuration endpoint) or a comma-separated seed list, and DB must be 0 — Redis
+	// Cluster has no logical databases. A single-node client pointed at a cluster gets
+	// MOVED for every key that lives on another node, so the mode has to be explicit
+	// rather than guessed from the address.
+	Mode     string `json:"mode"`
 	Addr     string `json:"addr"`
 	Password string `json:"password"`
 	DB       int    `json:"db"`
@@ -47,6 +56,52 @@ type RedisStreamConfig struct {
 	FlushMs         int    `json:"flush_ms"`          // reserved for future batching
 	QPS             int    `json:"qps"`               // 0 = unlimited; default 50
 	MaxPayloadBytes int    `json:"max_payload_bytes"` // default 4096; oversized payload replaced with {"_truncated":true}
+}
+
+// Redis topologies accepted by RedisStreamConfig.Mode.
+const (
+	RedisModeSingle  = "single"
+	RedisModeCluster = "cluster"
+)
+
+// redisStreamClientOptions builds the client options shared by the producer core and
+// the consumer, so both sides always connect to the same topology.
+//
+// The stream is a single key, so every command the hook and consumer issue (XADD,
+// XREADGROUP, XACK, XAUTOCLAIM, XINFO, XGROUP) is single-key and cluster-safe; in
+// cluster mode the whole stream lives on the shard that owns its slot.
+func redisStreamClientOptions(cfg *RedisStreamConfig) (*redis.UniversalOptions, error) {
+	opts := &redis.UniversalOptions{
+		Password: cfg.Password,
+		DB:       cfg.DB,
+	}
+	switch strings.ToLower(strings.TrimSpace(cfg.Mode)) {
+	case "", RedisModeSingle:
+		if strings.Contains(cfg.Addr, ",") {
+			return nil, fmt.Errorf("redis stream: addr %q lists several nodes; set mode: cluster for a cluster", cfg.Addr)
+		}
+		opts.Addrs = []string{strings.TrimSpace(cfg.Addr)}
+	case RedisModeCluster:
+		if cfg.DB != 0 {
+			return nil, fmt.Errorf("redis stream: db must be 0 in cluster mode, got %d", cfg.DB)
+		}
+		for _, a := range strings.Split(cfg.Addr, ",") {
+			if a = strings.TrimSpace(a); a != "" {
+				opts.Addrs = append(opts.Addrs, a)
+			}
+		}
+		if len(opts.Addrs) == 0 {
+			return nil, fmt.Errorf("redis stream: addr is required")
+		}
+		// Without this, go-redis builds a single-node client when only one seed is given.
+		opts.IsClusterMode = true
+	default:
+		return nil, fmt.Errorf("redis stream: unknown mode %q (want single or cluster)", cfg.Mode)
+	}
+	if cfg.UseTLS {
+		opts.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	}
+	return opts, nil
 }
 
 // RedisStreamCore is a zapcore.Core that ships log entries to a Redis stream.
@@ -101,6 +156,10 @@ func NewRedisStreamCore(cfg *RedisStreamConfig, prefix string, fields map[string
 	}
 
 	applyRedisStreamDefaults(cfg)
+	opts, err := redisStreamClientOptions(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("redis stream core: %w", err)
+	}
 
 	host, _ := os.Hostname()
 
@@ -125,14 +184,6 @@ func NewRedisStreamCore(cfg *RedisStreamConfig, prefix string, fields map[string
 		core.bucketLastRefill.Store(time.Now().UnixNano())
 	}
 
-	opts := &redis.UniversalOptions{
-		Addrs:    []string{cfg.Addr},
-		Password: cfg.Password,
-		DB:       cfg.DB,
-	}
-	if cfg.UseTLS {
-		opts.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
-	}
 	core.client = redis.NewUniversalClient(opts)
 
 	// Best-effort startup ping. Do not fail core construction — core continues
