@@ -6,12 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"reflect"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -54,7 +52,9 @@ type RedisStreamConfig struct {
 	MaxLen          int64  `json:"max_len"`           // default 200_000 (approximate)
 	BatchSize       int    `json:"batch_size"`        // reserved for future batching; current impl is single-write
 	FlushMs         int    `json:"flush_ms"`          // reserved for future batching
-	QPS             int    `json:"qps"`               // 0 = unlimited; default 50
+	QPS             int    `json:"qps"`               // info/debug budget per second; 0 = default 50, < 0 = unlimited
+	WarnQPS         int    `json:"warn_qps"`          // warn budget per second; 0 = default 50, < 0 = unlimited
+	ErrorQPS        int    `json:"error_qps"`         // error-and-above budget per second; 0 = default 50, < 0 = unlimited
 	MaxPayloadBytes int    `json:"max_payload_bytes"` // default 4096; oversized payload replaced with {"_truncated":true}
 }
 
@@ -114,10 +114,15 @@ func redisStreamClientOptions(cfg *RedisStreamConfig) (*redis.UniversalOptions, 
 // Failure modes (matching hook/kafka.go semantics — non-blocking, log-and-drop):
 //   - Constructor: redis.Ping failure prints to stderr but does not error;
 //     the core continues and individual XADDs may also fail at write time.
-//   - writeData: XADD failure prints to stderr; the entry is dropped.
+//   - writeData: XADD failure is counted and the entry is dropped; stderr
+//     reports the first failure and then every stderrEvery-th.
 //     stdout/file paths are unaffected (zap tee runs cores independently).
-//   - Producer storm: token bucket (RedisStreamConfig.QPS) drops over-budget
-//     entries and increments droppedTotal — observable via DroppedTotal().
+//   - Producer storm: one token bucket per level class (QPS / WarnQPS /
+//     ErrorQPS), checked on the caller goroutine before any field work, so
+//     info volume can never use up the warn or error budget.
+//   - Queue full: only the incoming entry is dropped.
+//
+// Every drop is counted by reason and level — see DropStats / DroppedTotal.
 type RedisStreamCore struct {
 	*BaseCore
 
@@ -125,12 +130,11 @@ type RedisStreamCore struct {
 	client redis.UniversalClient
 	host   string
 
-	// Token bucket state — atomic to avoid taking a lock in writeData hot path.
-	bucketTokens     atomic.Int64
-	bucketLastRefill atomic.Int64 // unix nanoseconds
-	bucketCap        int64
-	droppedTotal     atomic.Uint64
+	buckets [tierCount]*tokenBucket
+	drops   dropCounters
 }
+
+var xaddErrReport everyN
 
 // NewRedisStreamCore constructs a RedisStreamCore. The returned core is ready
 // to be tee'd onto a zap.Logger via zapcore.NewTee, or appended to the cores
@@ -140,7 +144,7 @@ type RedisStreamCore struct {
 // Defaults applied for unset fields:
 //   - StreamKey:       "system_logs"
 //   - MaxLen:          200_000
-//   - QPS:             50 (0 explicitly disables throttle)
+//   - QPS / WarnQPS / ErrorQPS: 50 each (negative disables that throttle)
 //   - MaxPayloadBytes: 4096
 //   - QueueLength:     1024 (BaseCore async buffer)
 //
@@ -173,16 +177,15 @@ func NewRedisStreamCore(cfg *RedisStreamConfig, prefix string, fields map[string
 			fields:       CombineFields(fields, cfg.Fields),
 			off:          cfg.Off,
 		},
-		cfg:       cfg,
-		host:      host,
-		bucketCap: int64(cfg.QPS),
+		cfg:  cfg,
+		host: host,
+		buckets: [tierCount]*tokenBucket{
+			tierInfo:  newTokenBucket(cfg.QPS),
+			tierWarn:  newTokenBucket(cfg.WarnQPS),
+			tierError: newTokenBucket(cfg.ErrorQPS),
+		},
 	}
 	core.BaseCore.core = core
-
-	if cfg.QPS > 0 {
-		core.bucketTokens.Store(int64(cfg.QPS))
-		core.bucketLastRefill.Store(time.Now().UnixNano())
-	}
 
 	core.client = redis.NewUniversalClient(opts)
 
@@ -210,23 +213,41 @@ func (c *RedisStreamCore) Close() error {
 	return nil
 }
 
-// DroppedTotal returns the cumulative count of entries dropped by the token
-// bucket (over-QPS) since core construction. Useful for the
-// system_log_dropped_total metric (consumer can scrape via callback).
+// DroppedTotal returns the cumulative count of entries this core dropped
+// (over budget, queue full or XADD error) since construction. DropStats gives
+// the process-wide breakdown by reason and level.
 func (c *RedisStreamCore) DroppedTotal() uint64 {
-	return c.droppedTotal.Load()
+	return c.drops.snapshot().Total()
+}
+
+// DropStats returns this core's drop counts by reason and level.
+func (c *RedisStreamCore) DropStats() DropCounts {
+	return c.drops.snapshot()
+}
+
+func (c *RedisStreamCore) recordDrop(r dropReason, lvl zapcore.Level) {
+	c.drops.add(r, lvl)
+	processDrops.add(r, lvl)
+}
+
+// admit runs on the caller goroutine before BaseCore does any field work, so
+// an over-budget entry costs one atomic check.
+func (c *RedisStreamCore) admit(lvl zapcore.Level) bool {
+	if c.buckets[tierOf(lvl)].allow() {
+		return true
+	}
+	c.recordDrop(dropRate, lvl)
+	return false
+}
+
+func (c *RedisStreamCore) recordQueueDrop(lvl zapcore.Level) {
+	c.recordDrop(dropQueue, lvl)
 }
 
 // writeData runs in the BaseCore goroutine (single consumer of c.queue).
 // It serializes the entry per the ADR-0042 contract and XADDs to the stream.
-// On QPS overrun, it drops the entry and increments droppedTotal — this is
-// the only loss path under healthy redis (the rest is reactive to redis
-// failures, observable in stderr).
+// Budget checks already happened in admit.
 func (c *RedisStreamCore) writeData(data *CoreData) {
-	if !c.allow() {
-		c.droppedTotal.Add(1)
-		return
-	}
 
 	// Extract source from fields (zap.With("source", ...) sub-logger derives
 	// add this field). Hoist to top-level XADD k/v so the consumer can use
@@ -284,8 +305,11 @@ func (c *RedisStreamCore) writeData(data *CoreData) {
 		Approx: true, // MAXLEN ~ N keeps trim O(1)
 		Values: values,
 	}).Err(); err != nil {
-		fmt.Fprintf(os.Stderr,
-			"[log] redis stream xadd err: %v\n", err)
+		c.recordDrop(dropXAddError, data.entry.Level)
+		if n, ok := xaddErrReport.hit(); ok {
+			fmt.Fprintf(os.Stderr,
+				"[log] redis stream xadd err (failures_total=%d): %v\n", n, err)
+		}
 	}
 }
 
@@ -411,45 +435,6 @@ func safeString(stringer fmt.Stringer) (out string) {
 	return stringer.String()
 }
 
-// allow consumes one token from the QPS bucket. Returns true if granted,
-// false if over budget. Refills lazily based on elapsed nanoseconds — no
-// background ticker, no lock contention beyond two atomic CAS-equivalents.
-//
-// QPS=0 disables throttling entirely (always returns true).
-func (c *RedisStreamCore) allow() bool {
-	if c.cfg.QPS <= 0 {
-		return true
-	}
-
-	now := time.Now().UnixNano()
-	last := c.bucketLastRefill.Load()
-	elapsed := now - last
-
-	// Compute tokens to refill since last call. One second = full QPS budget.
-	if elapsed > 0 {
-		refill := int64(math.Floor(float64(elapsed) * float64(c.bucketCap) / float64(time.Second)))
-		if refill > 0 && c.bucketLastRefill.CompareAndSwap(last, now) {
-			// Add refill but cap at bucketCap so a long idle window doesn't
-			// allow a single burst > QPS.
-			tokens := c.bucketTokens.Add(refill)
-			if tokens > c.bucketCap {
-				c.bucketTokens.Store(c.bucketCap)
-			}
-		}
-	}
-
-	// Try to consume one token.
-	for {
-		current := c.bucketTokens.Load()
-		if current <= 0 {
-			return false
-		}
-		if c.bucketTokens.CompareAndSwap(current, current-1) {
-			return true
-		}
-	}
-}
-
 func applyRedisStreamDefaults(cfg *RedisStreamConfig) {
 	if cfg.StreamKey == "" {
 		cfg.StreamKey = "system_logs"
@@ -462,6 +447,12 @@ func applyRedisStreamDefaults(cfg *RedisStreamConfig) {
 	}
 	if cfg.QPS == 0 {
 		cfg.QPS = 50
+	}
+	if cfg.WarnQPS == 0 {
+		cfg.WarnQPS = 50
+	}
+	if cfg.ErrorQPS == 0 {
+		cfg.ErrorQPS = 50
 	}
 	if cfg.MaxPayloadBytes <= 0 {
 		cfg.MaxPayloadBytes = 4096

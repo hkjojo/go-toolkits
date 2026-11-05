@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap/zapcore"
@@ -13,6 +14,35 @@ import (
 type Core interface {
 	writeData(data *CoreData)
 }
+
+// admitter is an optional Core capability: decide on the caller goroutine,
+// before any field work, whether an entry may proceed. A sink that sheds most
+// of its input (RedisStreamCore's token buckets) implements it so the shed
+// entries cost nothing beyond the check.
+type admitter interface {
+	admit(lvl zapcore.Level) bool
+}
+
+// queueDropRecorder is an optional Core capability: count entries dropped
+// because the async queue was full.
+type queueDropRecorder interface {
+	recordQueueDrop(lvl zapcore.Level)
+}
+
+// stderrEvery bounds how often a persistent sink fault is reported on stderr:
+// the first occurrence, then once every stderrEvery occurrences.
+const stderrEvery = 10000
+
+// everyN reports whether the current occurrence should be printed (first, then
+// every stderrEvery-th) and the running count.
+type everyN struct{ n atomic.Uint64 }
+
+func (e *everyN) hit() (uint64, bool) {
+	v := e.n.Add(1)
+	return v, v == 1 || v%stderrEvery == 0
+}
+
+var queueFullReport everyN
 
 // CoreConfig default config
 type CoreConfig struct {
@@ -52,6 +82,9 @@ func (c *BaseCore) With(fields []zapcore.Field) zapcore.Core {
 
 // Write ..
 func (c *BaseCore) Write(ent zapcore.Entry, fields []zapcore.Field) error {
+	if a, ok := c.core.(admitter); ok && !a.admit(ent.Level) {
+		return nil
+	}
 	if c.core != nil {
 		var fs = SliceFieldToMap(fields)
 		for _, field := range c.withfields {
@@ -89,18 +122,21 @@ func (c *BaseCore) Sync() error {
 	return c.out.Sync()
 }
 
+// write enqueues without blocking. A full queue drops only this entry: the
+// entries already queued (which may include errors) are kept.
 func (c *BaseCore) write(entry zapcore.Entry, fields []zapcore.Field) (err error) {
-
 	select {
 	case c.queue <- &CoreData{
 		entry:  entry,
 		fields: fields,
 	}:
 	default:
-		fmt.Fprintf(os.Stderr, "log channel is full entry[%v] abort [%d]",
-			entry, len(c.queue))
-		for len(c.queue) != 0 {
-			<-c.queue
+		if r, ok := c.core.(queueDropRecorder); ok {
+			r.recordQueueDrop(entry.Level)
+		}
+		if n, ok := queueFullReport.hit(); ok {
+			fmt.Fprintf(os.Stderr, "[log] hook queue full, entry dropped (level=%s msg=%q queue_len=%d dropped_total=%d)\n",
+				entry.Level, entry.Message, len(c.queue), n)
 		}
 	}
 	return nil
