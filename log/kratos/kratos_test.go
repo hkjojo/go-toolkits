@@ -133,3 +133,26 @@ func captureSingleLogLine(t *testing.T, emit func(logger klog.Logger)) string {
 	}
 	return line
 }
+
+type countingKey struct{ n *int }
+
+func (k countingKey) String() string { *k.n++; return "counted" }
+
+// TestLog_DisabledLevelSkipsConversion: a disabled level returns before any
+// key/value conversion; an enabled level still converts.
+func TestLog_DisabledLevelSkipsConversion(t *testing.T) {
+	logger, err := NewZapLog(&tklog.Config{Level: "info", Format: "json", DisableStdout: true})
+	if err != nil {
+		t.Fatalf("new logger: %v", err)
+	}
+
+	var n int
+	_ = logger.Log(klog.LevelDebug, countingKey{&n}, "v", msgkey("debug line"))
+	if n != 0 {
+		t.Fatalf("debug at info level converted keys %d times, want 0", n)
+	}
+	_ = logger.Log(klog.LevelInfo, countingKey{&n}, "v", msgkey("info line"))
+	if n != 1 {
+		t.Fatalf("info converted keys %d times, want 1", n)
+	}
+}

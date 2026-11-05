@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-kratos/kratos/v2/log"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	tklog "github.com/hkjojo/go-toolkits/log/v2"
 )
@@ -52,6 +53,13 @@ var _ log.Logger = (*logger)(nil)
 // a regular zap.Field while the zap encoder also writes its own MessageKey:"msg"
 // for the empty Entry.Message → produces double-msg key in JSON output.
 func (l *logger) Log(level log.Level, kvs ...interface{}) error {
+	// A disabled level (typically debug in production) returns before any
+	// field conversion; zap's own level check only comes after it.
+	zl, known := zapLevel(level)
+	if !known || !l.Core().Enabled(zl) {
+		return nil
+	}
+
 	ll := len(kvs)
 	if ll == 0 {
 		l.Warn(fmt.Sprint("keyvals not found: ", kvs))
@@ -86,9 +94,13 @@ func (l *logger) Log(level log.Level, kvs ...interface{}) error {
 		}
 	}
 
-	var data []zap.Field
+	data := make([]zap.Field, 0, len(kvs)/2)
 	for i := 0; i < len(kvs); i += 2 {
-		data = append(data, zap.Any(fmt.Sprint(kvs[i]), kvs[i+1]))
+		key, ok := kvs[i].(string)
+		if !ok {
+			key = fmt.Sprint(kvs[i])
+		}
+		data = append(data, zap.Any(key, kvs[i+1]))
 	}
 
 	m := string(msg)
@@ -105,6 +117,22 @@ func (l *logger) Log(level log.Level, kvs ...interface{}) error {
 		l.Fatal(m, data...)
 	}
 	return nil
+}
+
+func zapLevel(level log.Level) (zapcore.Level, bool) {
+	switch level {
+	case log.LevelDebug:
+		return zapcore.DebugLevel, true
+	case log.LevelInfo:
+		return zapcore.InfoLevel, true
+	case log.LevelWarn:
+		return zapcore.WarnLevel, true
+	case log.LevelError:
+		return zapcore.ErrorLevel, true
+	case log.LevelFatal:
+		return zapcore.FatalLevel, true
+	}
+	return 0, false
 }
 
 // Sync flushes buffered log entries.

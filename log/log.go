@@ -18,23 +18,28 @@ import (
 
 // Config ...
 type Config struct {
-	Path          string                `json:"path"`
-	Level         string                `json:"level"`
-	Fields        map[string]string     `json:"fields"`
-	MaxSize       int                   `json:"max_size"`
-	MaxBackups    int                   `json:"max_backups"`
-	MaxAge        int                   `json:"max_age"`
-	DisableStdout bool                  `json:"disable_stdout"`
-	Compress      bool                  `json:"compress"`
-	Format        string                `json:"format"` // json/console/text
-	ForbidTime    bool                  `json:"forbid_time"`
-	ForbidLevel   bool                  `json:"forbid_level"`
-	Caller        bool                  `json:"caller"`
-	Prefix        string                `json:"prefix"`
+	Path          string                  `json:"path"`
+	Level         string                  `json:"level"`
+	Fields        map[string]string       `json:"fields"`
+	MaxSize       int                     `json:"max_size"`
+	MaxBackups    int                     `json:"max_backups"`
+	MaxAge        int                     `json:"max_age"`
+	DisableStdout bool                    `json:"disable_stdout"`
+	Compress      bool                    `json:"compress"`
+	Format        string                  `json:"format"` // json/console/text
+	ForbidTime    bool                    `json:"forbid_time"`
+	ForbidLevel   bool                    `json:"forbid_level"`
+	Caller        bool                    `json:"caller"`
+	Prefix        string                  `json:"prefix"`
 	Kafka         *hook.KafkaConfig       `json:"kafka"`
 	WebHook       []*hook.WebHookConfig   `json:"webhook"`
 	Redis         *hook.RedisStreamConfig `json:"redis"`
 	RotateDay     int                     `json:"rotate_day"`
+	// StdoutBufferSize > 0 buffers stdout writes (bytes) and flushes them at
+	// least every second; error-and-above entries are flushed immediately.
+	// 0 (default) writes every entry straight to stdout. Call FlushStdout
+	// before the process exits.
+	StdoutBufferSize int `json:"stdout_buffer_size"`
 }
 
 func (c *Config) Metric() *Config {
@@ -173,8 +178,14 @@ func New(config *Config, opts ...Option) (*Logger, error) {
 		}
 	}
 
+	var stdoutBuffered bool
 	if !config.DisableStdout {
-		hooks = append(hooks, os.Stdout)
+		if config.StdoutBufferSize > 0 {
+			hooks = append(hooks, newStdoutBuffer(config.StdoutBufferSize))
+			stdoutBuffered = true
+		} else {
+			hooks = append(hooks, os.Stdout)
+		}
 	}
 
 	if config.ForbidTime {
@@ -223,11 +234,15 @@ func New(config *Config, opts ...Option) (*Logger, error) {
 	}
 
 	var cores []zapcore.Core
-	cores = append(cores, zapcore.NewCore(
+	var ioCore zapcore.Core = zapcore.NewCore(
 		ecoder,
 		zapcore.NewMultiWriteSyncer(hooks...),
 		lvl,
-	))
+	)
+	if stdoutBuffered {
+		ioCore = syncOnErrorCore{Core: ioCore}
+	}
+	cores = append(cores, ioCore)
 
 	for _, cfg := range config.WebHook {
 		cores = append(cores, hook.NewWebHookCore(cfg, encoderConfig))

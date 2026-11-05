@@ -369,14 +369,9 @@ func TestRedisStreamCore_ThrottleDrops(t *testing.T) {
 		QPS:       2, // very tight budget
 	}, nil)
 
+	logger := zap.New(core)
 	for i := 0; i < 10; i++ {
-		core.writeData(&CoreData{
-			entry: zapcore.Entry{
-				Time:    time.Now(),
-				Level:   zapcore.InfoLevel,
-				Message: "burst",
-			},
-		})
+		logger.Info("burst")
 	}
 
 	// Wait for whatever entries pass the bucket to land in the stream.
